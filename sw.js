@@ -1,12 +1,17 @@
-const CACHE_NAME = 'dodentocht-v1';
+const CACHE_NAME = 'eventapp-v2';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './app.js',
   './manifest.json',
+  './icon.svg',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './icon-maskable-512.png',
+  './apple-touch-icon.png',
+  './favicon-32.png',
+  './favicon.ico'
 ];
 
 self.addEventListener('install', (e) => {
@@ -26,7 +31,7 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Network first, fallback to cache for HTML/data
+  // Network first, fallback to cache for offline support
   e.respondWith(
     fetch(e.request).catch(() => caches.match(e.request))
   );
