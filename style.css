@@ -218,3 +218,29 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* User Filter Chips for Dev Analytics */
+.user-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background-color: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.user-filter-chip.active {
+  background-color: var(--forest-primary);
+  color: #FFFFFF;
+  border-color: var(--forest-primary);
+  box-shadow: 0 2px 6px rgba(27, 67, 50, 0.2);
+}
+
+.user-filter-chip input {
+  display: none;
+}

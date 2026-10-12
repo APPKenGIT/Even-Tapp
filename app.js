@@ -1,8 +1,9 @@
 /**
  * Even'Tapp - Event & Activiteiten Planner
  * Client-Side Webapplicatie voor GitHub Pages met stille Firebase Cloud Sync.
- * Bevat authenticatie, GDPR-wachtwoordhashing (SHA-256), eventplanning, intekeningen,
- * en exclusief rollenbeheer voor de ontwikkelaar (kennydm94@gmail.com).
+ * Bevat authenticatie met goedkeuringsbeheer, GDPR-wachtwoordhashing (SHA-256),
+ * persoonsgebonden analytics dashboard, ontwikkelaars team-analytics met parameters,
+ * en volledige moderatiebevoegdheden voor de ontwikkelaar (kennydm94@gmail.com).
  */
 
 // --- STATE MANAGEMENT & OPSLAG ---
@@ -29,6 +30,7 @@ let state = {
 };
 
 let currentDetailSessionId = null;
+let devAnalyticsSelectedUserIds = new Set();
 
 // --- GDPR CRYPTOGRAFISCHE WACHTWOORD HASHING (Web Crypto API) ---
 async function hashPassword(password) {
@@ -37,6 +39,39 @@ async function hashPassword(password) {
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// --- AVATAR & INITIALEN HELPER (TOT 3 INITIALEN OF PROFIELFOTO) ---
+function getInitials(name) {
+  if (!name) return 'ET';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 1) {
+    return parts[0].substring(0, Math.min(3, parts[0].length)).toUpperCase();
+  } else if (parts.length === 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  } else {
+    // 3 of meer woorden (bv. Kenny De Meester -> KDM)
+    return (parts[0][0] + parts[1][0] + parts[2][0]).toUpperCase();
+  }
+}
+
+function renderUserAvatar(userOrName, photoUrl = null, size = 32, extraClass = '') {
+  let name = typeof userOrName === 'string' ? userOrName : (userOrName?.name || 'Gebruiker');
+  let photo = photoUrl || (typeof userOrName === 'object' ? userOrName?.photoUrl : null);
+
+  if (!photo && typeof userOrName === 'string') {
+    const found = state.users.find(u => u.name.toLowerCase() === userOrName.toLowerCase());
+    if (found && found.photoUrl) photo = found.photoUrl;
+  }
+
+  if (photo) {
+    return `<img src="${photo}" class="rounded-circle ${extraClass}" style="width:${size}px;height:${size}px;object-fit:cover;border:1px solid rgba(0,0,0,0.15);" alt="${name}">`;
+  }
+
+  const initials = getInitials(name);
+  const fontSize = initials.length > 2 ? Math.round(size * 0.32) : Math.round(size * 0.38);
+
+  return `<span class="avatar-chip bg-forest text-white fw-bold ${extraClass}" style="width:${size}px;height:${size}px;font-size:${fontSize}px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;text-transform:uppercase;letter-spacing:-0.5px;">${initials}</span>`;
 }
 
 // --- INITIAL DATA SEEDING (bij eerste opstart) ---
@@ -52,8 +87,10 @@ async function getInitialUsers() {
       email: 'kennydm94@gmail.com',
       passwordHash: devPass,
       role: 'developer',
+      status: 'approved',
       phone: '',
       emergencyContact: '',
+      photoUrl: null,
       createdAt: '2026-10-09'
     },
     {
@@ -62,8 +99,10 @@ async function getInitialUsers() {
       email: 'koen@eventapp.be',
       passwordHash: adminPass,
       role: 'admin',
+      status: 'approved',
       phone: '0470 12 34 56',
       emergencyContact: 'Familie Demeester',
+      photoUrl: null,
       createdAt: '2026-10-09'
     },
     {
@@ -72,8 +111,10 @@ async function getInitialUsers() {
       email: 'sarah@eventapp.be',
       passwordHash: memberPass,
       role: 'user',
+      status: 'approved',
       phone: '',
       emergencyContact: '',
+      photoUrl: null,
       createdAt: '2026-10-09'
     }
   ];
@@ -186,7 +227,19 @@ async function loadState() {
     state.users = await getInitialUsers();
     saveUsers();
   } else {
-    try { state.users = JSON.parse(storedUsers); } catch(e) { state.users = []; }
+    try {
+      state.users = JSON.parse(storedUsers);
+      // Garandeer dat elke bestaande gebruiker status approved heeft
+      state.users.forEach(u => {
+        if (!u.status) u.status = 'approved';
+        if (u.email === 'kennydm94@gmail.com') {
+          u.role = 'developer';
+          u.status = 'approved';
+        }
+      });
+    } catch(e) {
+      state.users = [];
+    }
   }
 
   if (!storedSessions) {
@@ -204,7 +257,16 @@ async function loadState() {
   }
 
   if (storedCurrent) {
-    try { state.currentUser = JSON.parse(storedCurrent); } catch(e) { state.currentUser = null; }
+    try {
+      state.currentUser = JSON.parse(storedCurrent);
+      // Synchroniseer actuele rol/status uit de users tabel
+      const liveUser = state.users.find(u => u.id === state.currentUser.id);
+      if (liveUser) {
+        state.currentUser = { ...liveUser };
+      }
+    } catch(e) {
+      state.currentUser = null;
+    }
   } else {
     state.currentUser = null;
   }
@@ -242,7 +304,7 @@ function saveCurrentUser() {
   }
 }
 
-// --- STILLE FIREBASE CLOUD SYNC (GEEN UI INDICATIE OF STATUS) ---
+// --- STILLE FIREBASE CLOUD SYNC ---
 async function pullCloudData() {
   if (!state.syncUrl) return;
   try {
@@ -253,18 +315,26 @@ async function pullCloudData() {
       if (data && data.sessions) {
         state.sessions = data.sessions;
         state.registrations = data.registrations || state.registrations;
-        if (data.users) state.users = data.users;
+        if (data.users) {
+          state.users = data.users;
+          state.users.forEach(u => { if (!u.status) u.status = 'approved'; });
+        }
         localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(state.sessions));
         localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(state.registrations));
         localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(state.users));
+
+        // Update actieve currentUser indien gewijzigd door dev
+        if (state.currentUser) {
+          const fresh = state.users.find(u => u.id === state.currentUser.id);
+          if (fresh) state.currentUser = { ...fresh };
+        }
+
         renderApp();
       } else if (data === null) {
-        // Firebase is nog leeg: initialiseer stil met de huidige data
         await pushCloudData();
       }
     }
   } catch (err) {
-    // Stille foutafhandeling
     console.warn("Background sync pull:", err);
   }
 }
@@ -284,13 +354,8 @@ async function pushCloudData() {
       })
     });
   } catch (err) {
-    // Stille foutafhandeling
     console.warn("Background sync push:", err);
   }
-}
-
-function updateSyncBadge() {
-  // Bewust leeg: geen UI-indicatoren conform wens
 }
 
 // --- DATUM FORMATTERING (NL) ---
@@ -314,7 +379,7 @@ function showToast(message, type = 'success') {
   const toastEl = document.createElement('div');
   toastEl.className = `alert alert-${type} shadow-sm alert-dismissible fade show d-flex align-items-center mb-2`;
   toastEl.innerHTML = `
-    <i class="bi ${type === 'success' ? 'bi-check-circle-fill' : type === 'danger' ? 'bi-exclamation-triangle-fill' : 'bi-info-circle-fill'} me-2 fs-5"></i>
+    <i class="bi ${type === 'success' ? 'bi-check-circle-fill' : type === 'danger' ? 'bi-exclamation-triangle-fill' : type === 'warning' ? 'bi-exclamation-circle-fill' : 'bi-info-circle-fill'} me-2 fs-5"></i>
     <div class="flex-grow-1">${message}</div>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   `;
@@ -322,10 +387,10 @@ function showToast(message, type = 'success') {
   setTimeout(() => {
     toastEl.classList.remove('show');
     setTimeout(() => toastEl.remove(), 250);
-  }, 4000);
+  }, 4500);
 }
 
-// --- RENDER APPLICATIE & LOGIN WALL GATE ---
+// --- RENDER HOOFDAPPLICATIE & LOGIN WALL GATE ---
 function renderApp() {
   const authGateView = document.getElementById('authGateView');
   const appMainView = document.getElementById('appMainView');
@@ -355,10 +420,17 @@ function renderNavbar() {
     const isDev = state.currentUser.role === 'developer';
     const roleLabel = isDev ? '👑 Ontwikkelaar' : state.currentUser.role === 'admin' ? '⭐ Administrator' : '👤 Lid';
 
+    // Aantal openstaande goedkeuringsaanvragen voor developer
+    const pendingCount = state.users.filter(u => u.status === 'pending').length;
+    const pendingBadgeHtml = pendingCount > 0 ? `<span class="badge bg-danger rounded-pill ms-1">${pendingCount}</span>` : '';
+
     if (devNav) {
       devNav.innerHTML = isDev ? `
-        <button class="btn btn-outline-warning text-warning btn-sm fw-semibold me-2" onclick="openDevRolesModal()">
-          <i class="bi bi-shield-lock-fill me-1"></i> Rollenbeheer
+        <button class="btn btn-outline-warning text-warning btn-sm fw-semibold me-2" onclick="openDevRolesModal()" title="Gebruikers en Rollen beheren">
+          <i class="bi bi-shield-lock-fill me-1"></i> Rollenbeheer ${pendingBadgeHtml}
+        </button>
+        <button class="btn btn-outline-light btn-sm fw-semibold me-2" onclick="openDevAnalyticsModal()" title="Team Analytics Dashboard">
+          <i class="bi bi-bar-chart-line-fill me-1"></i> Analytics (Dev)
         </button>
       ` : '';
     }
@@ -366,16 +438,21 @@ function renderNavbar() {
     if (userNav) {
       userNav.innerHTML = `
         <div class="dropdown">
-          <button class="btn btn-dark text-white dropdown-toggle d-flex align-items-center p-1 px-2 rounded-pill border-0" type="button" data-bs-toggle="dropdown">
-            <span class="avatar-chip bg-forest text-white me-2" style="width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;">${state.currentUser.name[0].toUpperCase()}</span>
+          <button class="btn btn-dark text-white dropdown-toggle d-flex align-items-center p-1 px-2 rounded-pill border-0 shadow-sm" type="button" data-bs-toggle="dropdown">
+            <span class="me-2">${renderUserAvatar(state.currentUser, state.currentUser.photoUrl, 30)}</span>
             <div class="text-start me-2 d-none d-sm-block">
               <span class="d-block fw-bold lh-1" style="font-size:0.88rem;">${state.currentUser.name}</span>
               <small class="text-white-50" style="font-size:0.7rem;">${roleLabel}</small>
             </div>
           </button>
           <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+            <li><a class="dropdown-item" href="#" onclick="openMyAnalyticsModal(); return false;"><i class="bi bi-bar-chart-fill me-2 text-primary"></i> Mijn Inzichten (Dashboard)</a></li>
             <li><a class="dropdown-item" href="#" onclick="openProfileModal(); return false;"><i class="bi bi-person me-2"></i> Mijn Profiel & Privacy</a></li>
-            ${isDev ? '<li><a class="dropdown-item text-warning" href="#" onclick="openDevRolesModal(); return false;"><i class="bi bi-sliders me-2"></i> Rollen Toekennen</a></li>' : ''}
+            ${isDev ? `
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item text-warning" href="#" onclick="openDevRolesModal(); return false;"><i class="bi bi-sliders me-2"></i> Rollenbeheer ${pendingBadgeHtml}</a></li>
+              <li><a class="dropdown-item text-info" href="#" onclick="openDevAnalyticsModal(); return false;"><i class="bi bi-graph-up-arrow me-2"></i> Team Analytics Dashboard</a></li>
+            ` : ''}
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item text-danger" href="#" onclick="logout(); return false;"><i class="bi bi-box-arrow-right me-2"></i> Uitloggen</a></li>
           </ul>
@@ -427,13 +504,13 @@ function renderSessionCards() {
 
   if (list.length === 0) {
     container.innerHTML = `
-      <div class="col-12 text-center py-5">
-        <div class="card border-0 shadow-sm p-5">
-          <i class="bi bi-calendar-x fs-1 text-muted mb-3"></i>
-          <h4 class="fw-bold">Geen events gevonden</h4>
-          <p class="text-muted">Er zijn momenteel geen activiteiten gepland binnen deze categorie.</p>
+      <div class="col-12 text-center py-4">
+        <div class="card border-0 shadow-sm p-4">
+          <i class="bi bi-calendar-x fs-1 text-muted mb-2"></i>
+          <h5 class="fw-bold">Geen events gevonden</h5>
+          <p class="text-muted small">Er zijn momenteel geen activiteiten gepland binnen deze categorie.</p>
           <div>
-            <button class="btn btn-forest fw-semibold" onclick="openSessionForm()">
+            <button class="btn btn-forest btn-sm fw-semibold" onclick="openSessionForm()">
               <i class="bi bi-plus-lg me-1"></i> Plan een nieuw event
             </button>
           </div>
@@ -472,31 +549,31 @@ function renderSessionCards() {
       ['admin', 'developer'].includes(state.currentUser.role)
     );
 
-    let typeBadgeHtml = '<span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill fw-bold">🏃 Sport & Training</span>';
+    let typeBadgeHtml = '<span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill fw-bold">🏃 Sport & Training</span>';
     if (isEvent) {
-      typeBadgeHtml = '<span class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-bold">🎯 Evenement</span>';
+      typeBadgeHtml = '<span class="badge bg-warning text-dark px-2 py-1 rounded-pill fw-bold">🎯 Evenement</span>';
     } else if (isSocial) {
-      typeBadgeHtml = '<span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-2 rounded-pill fw-bold">🥂 Social / Bijeenkomst</span>';
+      typeBadgeHtml = '<span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1 rounded-pill fw-bold">🥂 Social / Bijeenkomst</span>';
     }
 
     return `
-      <div class="col-lg-6 mb-4">
+      <div class="col-lg-6 mb-3">
         <div class="card h-100 session-card border-0 shadow-sm ${isEvent ? 'border-start border-warning border-5' : isSocial ? 'border-start border-info border-5' : 'border-start border-success border-5'}">
-          <div class="card-body p-4 d-flex flex-column">
+          <div class="card-body p-3 p-md-4 d-flex flex-column">
 
             <!-- Type badge + status -->
-            <div class="d-flex justify-content-between align-items-start mb-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
               <div>${typeBadgeHtml}</div>
               <div>${myStatusBadge}</div>
             </div>
 
             <!-- Titel -->
-            <h4 class="card-title fw-bold text-dark mb-3 cursor-pointer" onclick="openSessionDetail('${s.id}')" style="cursor: pointer;">
+            <h5 class="card-title fw-bold text-dark mb-2 cursor-pointer" onclick="openSessionDetail('${s.id}')" style="cursor: pointer;">
               ${s.title}
-            </h4>
+            </h5>
 
             <!-- Parameters Grid -->
-            <div class="session-meta-grid mb-3">
+            <div class="session-meta-grid mb-2">
               <div class="meta-item">
                 <i class="bi bi-calendar3 text-forest me-2"></i>
                 <div>
@@ -528,24 +605,24 @@ function renderSessionCards() {
             </div>
 
             <!-- Aangemaakt door -->
-            <div class="p-2 bg-light rounded-3 mb-3 d-flex align-items-center justify-content-between">
+            <div class="p-2 bg-light rounded-3 mb-2 d-flex align-items-center justify-content-between">
               <div class="d-flex align-items-center">
-                <i class="bi bi-person-fill text-muted me-2"></i>
-                <small class="text-muted">Aangemaakt door: <strong class="text-dark">${s.creatorName}</strong></small>
+                <span class="me-2">${renderUserAvatar(s.creatorName, null, 24)}</span>
+                <small class="text-muted">Door: <strong class="text-dark">${s.creatorName}</strong></small>
               </div>
               ${canEdit ? '<span class="badge bg-success-subtle text-success small">Beheerbaar</span>' : ''}
             </div>
 
             <!-- Footer: Deelnemers en knoppen -->
-            <div class="d-flex align-items-center justify-content-between pt-3 border-top mt-auto">
+            <div class="d-flex align-items-center justify-content-between pt-2 border-top mt-auto">
               <div class="d-flex align-items-center">
-                <div class="bg-forest-subtle text-forest rounded-circle me-2 p-2 d-flex align-items-center justify-content-center" style="width:36px;height:36px;">
-                  <i class="bi bi-people-fill"></i>
+                <div class="bg-forest-subtle text-forest rounded-circle me-2 p-1 d-flex align-items-center justify-content-center" style="width:30px;height:30px;">
+                  <i class="bi bi-people-fill small"></i>
                 </div>
                 <div>
-                  <span class="fw-bold fs-6 text-dark">${presentRegs.length}</span>
-                  <small class="text-muted">aanwezigen</small>
-                  ${maybeRegs.length > 0 ? `<small class="text-warning">(${maybeRegs.length} misschien)</small>` : ''}
+                  <span class="fw-bold small text-dark">${presentRegs.length}</span>
+                  <small class="text-muted" style="font-size:0.75rem;">aanwezigen</small>
+                  ${maybeRegs.length > 0 ? `<small class="text-warning" style="font-size:0.75rem;">(${maybeRegs.length} ?)</small>` : ''}
                 </div>
               </div>
 
@@ -566,12 +643,12 @@ function renderSessionCards() {
 function setFilter(filterType) {
   state.activeFilter = filterType;
   document.querySelectorAll('#filterButtons button').forEach(btn => {
-    btn.className = btn.dataset.filter === filterType ? 'btn btn-forest text-white fw-semibold' : 'btn btn-outline-secondary bg-white fw-semibold';
+    btn.className = btn.dataset.filter === filterType ? 'btn btn-forest text-white fw-semibold btn-sm' : 'btn btn-outline-secondary bg-white fw-semibold btn-sm';
   });
   renderSessionCards();
 }
 
-// --- AUTHENTICATIE & REGISTRATIE ---
+// --- AUTHENTICATIE MET GOEDKEURINGEN ---
 async function handleLogin(e) {
   e.preventDefault();
   const emailInput = document.getElementById('loginEmail');
@@ -583,14 +660,25 @@ async function handleLogin(e) {
 
   const user = state.users.find(u => u.email.toLowerCase() === email);
   if (!user) {
-    showToast('Geen account gevonden met dit e-mailadres. Maak gerust een nieuw account aan!', 'danger');
+    showToast('Geen account gevonden met dit e-mailadres. Vraag gerust een nieuw account aan!', 'danger');
+    return;
+  }
+
+  // Goedkeuring controleren
+  const userStatus = user.status || 'approved';
+  if (userStatus === 'pending') {
+    showToast('⏳ Je account staat nog in afwachting van goedkeuring door de beheerder (Kenny).', 'warning');
+    return;
+  }
+  if (userStatus === 'rejected') {
+    showToast('❌ Je registratieaanvraag is helaas afgekeurd door de beheerder.', 'danger');
     return;
   }
 
   const hash = await hashPassword(password);
   let isValid = (user.passwordHash === hash);
 
-  // Ondersteun voor het ontwikkelaarsaccount beide bekende wachtwoorden
+  // Ondersteun voor de ontwikkelaar beide wachtwoorden
   if (!isValid && email === 'kennydm94@gmail.com') {
     const devHash1 = await hashPassword('KennyEvenTapp2026!');
     const devHash2 = await hashPassword('KennyDodentocht2026!');
@@ -634,7 +722,8 @@ async function handleRegister(e) {
   }
 
   const hash = await hashPassword(password);
-  const isDev = email === 'kennydm94@gmail.com' || state.users.length === 0;
+  const isDev = (email === 'kennydm94@gmail.com');
+  const userStatus = isDev ? 'approved' : 'pending';
 
   const newUser = {
     id: 'usr_' + Date.now(),
@@ -642,19 +731,28 @@ async function handleRegister(e) {
     email,
     passwordHash: hash,
     role: isDev ? 'developer' : 'user',
+    status: userStatus,
     phone,
     emergencyContact: '',
+    photoUrl: null,
     createdAt: new Date().toISOString().split('T')[0]
   };
 
   state.users.push(newUser);
   saveUsers();
 
-  state.currentUser = newUser;
-  saveCurrentUser();
-
-  showToast(`Account aangemaakt! Welkom bij Even'Tapp, ${name}.`, 'success');
-  renderApp();
+  if (isDev) {
+    state.currentUser = newUser;
+    saveCurrentUser();
+    showToast(`Welkom ontwikkelaar ${name}!`, 'success');
+    renderApp();
+  } else {
+    document.getElementById('gateRegisterForm').reset();
+    showToast('✅ Aanvraag geregistreerd! Je account staat in afwachting van goedkeuring door beheerder Kenny.', 'warning');
+    // Schakel automatisch naar inlogtab
+    const tabLoginBtn = document.getElementById('tabLoginBtn');
+    if (tabLoginBtn) bootstrap.Tab.getOrCreateInstance(tabLoginBtn).show();
+  }
 }
 
 function logout() {
@@ -712,6 +810,10 @@ function openSessionDetail(sessionId) {
 
   document.getElementById('detailDescription').textContent = sess.description || 'Geen extra toelichting vermeld.';
   document.getElementById('detailCreator').textContent = sess.creatorName;
+  const creatorAvatarEl = document.getElementById('detailCreatorAvatar');
+  if (creatorAvatarEl) {
+    creatorAvatarEl.innerHTML = renderUserAvatar(sess.creatorName, null, 32);
+  }
 
   // Route link
   const routeBox = document.getElementById('detailRouteContainer');
@@ -738,7 +840,7 @@ function openSessionDetail(sessionId) {
   if (editContainer) {
     if (canEdit) {
       editContainer.innerHTML = `
-        <button class="btn btn-outline-primary btn-sm me-2" onclick="editSession('${sess.id}')">
+        <button class="btn btn-outline-primary btn-sm me-1" onclick="editSession('${sess.id}')">
           <i class="bi bi-pencil-square me-1"></i> Bewerken
         </button>
         <button class="btn btn-outline-danger btn-sm" onclick="deleteSession('${sess.id}')">
@@ -824,66 +926,121 @@ function saveRsvpNote() {
     renderAttendeesList(sessionId);
     showToast('Opmerking opgeslagen!', 'success');
   } else {
-    // Registreer als aanwezig met de opmerking
     setMyRsvp('present');
   }
 }
 
+// Deelnemerslijst inclusief Ontwikkelaars Moderatieknoppen
 function renderAttendeesList(sessionId) {
   const container = document.getElementById('detailAttendeesList');
   const countBadge = document.getElementById('detailAttendeeCountBadge');
   const regs = state.registrations.filter(r => r.sessionId === sessionId);
   const present = regs.filter(r => r.status === 'present');
   const maybe = regs.filter(r => r.status === 'maybe');
+  const absent = regs.filter(r => r.status === 'absent');
 
   if (countBadge) countBadge.textContent = `${present.length} aanwezig`;
   if (!container) return;
 
-  if (present.length === 0 && maybe.length === 0) {
+  if (regs.length === 0) {
     container.innerHTML = '<p class="text-muted small fst-italic p-2 mb-0">Nog geen inschrijvingen voor dit event.</p>';
     return;
+  }
+
+  const isDev = state.currentUser && state.currentUser.role === 'developer';
+
+  function renderRegItem(r, iconClass, iconColor) {
+    const userObj = state.users.find(u => u.id === r.userId);
+    const avatarHtml = renderUserAvatar(userObj || r.userName, userObj ? userObj.photoUrl : null, 28);
+
+    // Moderatieknoppen voor de ontwikkelaar bij ongepast gedrag / foute opmerkingen
+    const devModControls = isDev ? `
+      <div class="d-flex align-items-center gap-1 ms-2">
+        <button class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="devEditRsvp('${sessionId}', '${r.userId}')" title="Status of opmerking modereren / aanpassen" style="font-size:0.75rem;">
+          <i class="bi bi-pencil"></i>
+        </button>
+        <button class="btn btn-outline-danger btn-sm py-0 px-1" onclick="devRemoveRsvp('${sessionId}', '${r.userId}')" title="Intekening ongedaan maken / wissen" style="font-size:0.75rem;">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    ` : '';
+
+    return `
+      <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center flex-grow-1 text-truncate">
+          <span class="me-2 flex-shrink-0">${avatarHtml}</span>
+          <div class="text-truncate">
+            <strong class="text-dark d-block small">${r.userName}</strong>
+            ${r.note ? `<small class="text-muted fst-italic text-truncate d-block" style="max-width:200px;" title="${r.note}">"${r.note}"</small>` : ''}
+          </div>
+        </div>
+        <div class="d-flex align-items-center flex-shrink-0">
+          <i class="${iconClass} ${iconColor} me-1"></i>
+          ${devModControls}
+        </div>
+      </li>
+    `;
   }
 
   let html = '';
   if (present.length > 0) {
     html += '<h6 class="small text-muted text-uppercase fw-bold mb-2">Aanwezig:</h6><ul class="list-group list-group-flush mb-3">';
-    present.forEach(r => {
-      html += `
-        <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
-          <div class="d-flex align-items-center">
-            <span class="avatar-chip bg-forest text-white me-2" style="width:28px;height:28px;font-size:0.8rem;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;">${(r.userName || 'U')[0].toUpperCase()}</span>
-            <div>
-              <strong class="text-dark d-block small">${r.userName}</strong>
-              ${r.note ? `<small class="text-muted fst-italic">"${r.note}"</small>` : ''}
-            </div>
-          </div>
-          <i class="bi bi-check-circle-fill text-success"></i>
-        </li>
-      `;
-    });
+    present.forEach(r => { html += renderRegItem(r, 'bi bi-check-circle-fill', 'text-success'); });
     html += '</ul>';
   }
 
   if (maybe.length > 0) {
     html += '<h6 class="small text-muted text-uppercase fw-bold mb-2">Misschien:</h6><ul class="list-group list-group-flush mb-2">';
-    maybe.forEach(r => {
-      html += `
-        <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
-          <div class="d-flex align-items-center">
-            <span class="avatar-chip bg-warning text-dark me-2" style="width:28px;height:28px;font-size:0.8rem;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;">${(r.userName || 'U')[0].toUpperCase()}</span>
-            <div>
-              <span class="text-dark d-block small">${r.userName}</span>
-              ${r.note ? `<small class="text-muted fst-italic">"${r.note}"</small>` : ''}
-            </div>
-          </div>
-          <i class="bi bi-question-circle-fill text-warning"></i>
-        </li>
-      `;
-    });
+    maybe.forEach(r => { html += renderRegItem(r, 'bi bi-question-circle-fill', 'text-warning'); });
+    html += '</ul>';
+  }
+
+  if (absent.length > 0 && isDev) {
+    html += '<h6 class="small text-muted text-uppercase fw-bold mb-2">Afgemeld:</h6><ul class="list-group list-group-flush mb-2">';
+    absent.forEach(r => { html += renderRegItem(r, 'bi bi-x-circle-fill', 'text-secondary'); });
     html += '</ul>';
   }
 
   container.innerHTML = html;
+}
+
+// Ontwikkelaars Moderatie: Intekening van een ander account ongedaan maken of aanpassen
+function devRemoveRsvp(sessionId, userId) {
+  if (!state.currentUser || state.currentUser.role !== 'developer') return;
+  const reg = state.registrations.find(r => r.sessionId === sessionId && r.userId === userId);
+  if (!reg) return;
+
+  if (!confirm(`Intekening van "${reg.userName}" ongedaan maken en verwijderen?`)) return;
+
+  state.registrations = state.registrations.filter(r => !(r.sessionId === sessionId && r.userId === userId));
+  saveRegistrations();
+  showToast(`Intekening van ${reg.userName} is ongedaan gemaakt en verwijderd.`, 'info');
+  renderAttendeesList(sessionId);
+  renderSessionCards();
+}
+
+function devEditRsvp(sessionId, userId) {
+  if (!state.currentUser || state.currentUser.role !== 'developer') return;
+  const reg = state.registrations.find(r => r.sessionId === sessionId && r.userId === userId);
+  if (!reg) return;
+
+  const newStatus = prompt(`Status voor ${reg.userName} (kies: present, maybe, of absent):`, reg.status);
+  if (newStatus === null) return;
+  const cleanStatus = newStatus.trim().toLowerCase();
+  if (!['present', 'maybe', 'absent'].includes(cleanStatus)) {
+    showToast('Ongeldige status. Kies: present, maybe of absent.', 'danger');
+    return;
+  }
+
+  const newNote = prompt(`Opmerking voor ${reg.userName} (leeglaten om te wissen):`, reg.note || '');
+  if (newNote === null) return;
+
+  reg.status = cleanStatus;
+  reg.note = newNote.trim();
+  saveRegistrations();
+  showToast(`Intekening van ${reg.userName} succesvol gemodereerd.`, 'success');
+  renderAttendeesList(sessionId);
+  renderSessionCards();
 }
 
 // --- SESSIE AANMAKEN & BEWERKEN ---
@@ -954,7 +1111,7 @@ function handleSessionFormSubmit(e) {
   const description = document.getElementById('formDescription').value.trim();
 
   if (id) {
-    // Bewerken
+    // Bewerken (maker, admin of developer)
     const sess = state.sessions.find(s => s.id === id);
     if (sess) {
       sess.title = title;
@@ -1009,15 +1166,104 @@ function handleSessionFormSubmit(e) {
   renderApp();
 }
 
-// --- ROLLENBEHEER (EXCLUSIEF VOOR ONTWIKKELAAR KENNY) ---
+// --- ROLLENBEHEER, GOEDKEURINGEN & GEBRUIKERS VERWIJDEREN (EXCLUSIEF VOOR KENNY) ---
 function openDevRolesModal() {
   if (!state.currentUser || state.currentUser.role !== 'developer') {
     showToast('Toegang geweigerd. Deze functie is exclusief voor de app-ontwikkelaar.', 'danger');
     return;
   }
 
+  renderPendingRegistrationsSection();
   renderDevUsersTable();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('devRolesModal')).show();
+}
+
+function renderPendingRegistrationsSection() {
+  const pendingSection = document.getElementById('pendingRegistrationsSection');
+  const container = document.getElementById('pendingRegistrationsContainer');
+  if (!pendingSection || !container) return;
+
+  const pendingUsers = state.users.filter(u => u.status === 'pending');
+  if (pendingUsers.length === 0) {
+    pendingSection.classList.add('d-none');
+    return;
+  }
+
+  pendingSection.classList.remove('d-none');
+  container.innerHTML = `
+    <div class="list-group list-group-flush">
+      ${pendingUsers.map(u => `
+        <div class="list-group-item bg-transparent px-0 py-2 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+          <div class="d-flex align-items-center">
+            <span class="me-2">${renderUserAvatar(u, u.photoUrl, 32)}</span>
+            <div>
+              <strong class="d-block text-dark">${u.name}</strong>
+              <small class="text-muted">${u.email} ${u.phone ? `• ${u.phone}` : ''} • Aangevraagd: ${u.createdAt || 'recent'}</small>
+            </div>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-success btn-sm fw-bold" onclick="approveUser('${u.id}')">
+              <i class="bi bi-check-lg me-1"></i> Goedkeuren
+            </button>
+            <button class="btn btn-warning btn-sm fw-bold text-dark" onclick="rejectUser('${u.id}')">
+              <i class="bi bi-x-lg me-1"></i> Afkeuren
+            </button>
+            <button class="btn btn-outline-danger btn-sm" onclick="deleteUser('${u.id}')" title="Verwijderen">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function approveUser(userId) {
+  const u = state.users.find(user => user.id === userId);
+  if (!u) return;
+  u.status = 'approved';
+  saveUsers();
+  showToast(`Account van ${u.name} is goedgekeurd! Deze gebruiker kan nu inloggen.`, 'success');
+  renderPendingRegistrationsSection();
+  renderDevUsersTable();
+  renderNavbar();
+}
+
+function rejectUser(userId) {
+  const u = state.users.find(user => user.id === userId);
+  if (!u) return;
+  u.status = 'rejected';
+  saveUsers();
+  showToast(`Registratie van ${u.name} is afgekeurd.`, 'info');
+  renderPendingRegistrationsSection();
+  renderDevUsersTable();
+  renderNavbar();
+}
+
+function deleteUser(userId) {
+  const u = state.users.find(user => user.id === userId);
+  if (!u) return;
+  if (u.role === 'developer' || (state.currentUser && state.currentUser.id === u.id)) {
+    showToast('Je kunt je eigen ontwikkelaarsaccount niet verwijderen.', 'danger');
+    return;
+  }
+
+  if (!confirm(`Weet je zeker dat je het account van "${u.name}" (${u.email}) definitief wilt verwijderen?\nAlle intekeningen en reacties van deze persoon worden ook gewist.`)) {
+    return;
+  }
+
+  // Verwijder registrations
+  state.registrations = state.registrations.filter(r => r.userId !== userId);
+  // Verwijder gebruiker
+  state.users = state.users.filter(user => user.id !== userId);
+
+  saveUsers();
+  saveRegistrations();
+  showToast(`Account van ${u.name} is definitief verwijderd.`, 'info');
+  renderPendingRegistrationsSection();
+  renderDevUsersTable();
+  renderNavbar();
+  renderSessionCards();
 }
 
 function renderDevUsersTable() {
@@ -1025,13 +1271,13 @@ function renderDevUsersTable() {
   if (!container) return;
   container.innerHTML = state.users.map(u => {
     const isMe = state.currentUser && state.currentUser.id === u.id;
+    const statusLabel = u.status === 'approved' ? '<span class="badge bg-success-subtle text-success">Actief</span>' : u.status === 'pending' ? '<span class="badge bg-warning-subtle text-warning">Wachtend</span>' : '<span class="badge bg-danger-subtle text-danger">Afgekeurd</span>';
+
     return `
       <tr>
         <td class="ps-3">
           <div class="d-flex align-items-center">
-            <span class="avatar-chip ${u.role === 'developer' ? 'bg-warning text-dark' : u.role === 'admin' ? 'bg-primary text-white' : 'bg-secondary text-white'} me-2" style="width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;">
-              ${u.name[0].toUpperCase()}
-            </span>
+            <span class="me-2">${renderUserAvatar(u, u.photoUrl, 32)}</span>
             <div>
               <strong class="d-block text-dark">${u.name}</strong>
               <small class="text-muted">${u.email}</small>
@@ -1039,21 +1285,27 @@ function renderDevUsersTable() {
             </div>
           </div>
         </td>
+        <td>${statusLabel}</td>
         <td>
           <span class="badge ${u.role === 'developer' ? 'bg-warning text-dark' : u.role === 'admin' ? 'bg-primary text-white' : 'bg-light text-dark border'} px-2 py-1">
             ${u.role.toUpperCase()}
           </span>
         </td>
         <td class="text-end pe-3">
-          <div class="d-inline-flex gap-2">
+          <div class="d-inline-flex gap-1">
             <select class="form-select form-select-sm" style="width:auto;" onchange="changeUserRole('${u.id}', this.value)" ${isMe ? 'disabled title="Je kunt je eigen rol niet wijzigen"' : ''}>
               <option value="user" ${u.role === 'user' ? 'selected' : ''}>Lid (User)</option>
-              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrator (Admin)</option>
-              <option value="developer" ${u.role === 'developer' ? 'selected' : ''}>Ontwikkelaar (Dev)</option>
+              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrator</option>
+              <option value="developer" ${u.role === 'developer' ? 'selected' : ''}>Ontwikkelaar</option>
             </select>
             <button class="btn btn-outline-warning btn-sm" onclick="promptResetPassword('${u.id}')" title="Wachtwoord resetten">
               <i class="bi bi-key-fill"></i>
             </button>
+            ${!isMe ? `
+              <button class="btn btn-outline-danger btn-sm" onclick="deleteUser('${u.id}')" title="Gebruiker verwijderen">
+                <i class="bi bi-trash"></i>
+              </button>
+            ` : ''}
           </div>
         </td>
       </tr>
@@ -1088,14 +1340,302 @@ async function promptResetPassword(userId) {
   showToast(`Wachtwoord gereset voor ${u.name}.`, 'success');
 }
 
-// --- MIJN PROFIEL & GDPR EXPORT ---
+// --- PERSOONLIJK ANALYTISCH INZICHT (DASHBOARD PER ACCOUNT) ---
+function openMyAnalyticsModal() {
+  if (!state.currentUser) return;
+
+  const myAvatarEl = document.getElementById('myAnalyticsAvatar');
+  if (myAvatarEl) myAvatarEl.innerHTML = renderUserAvatar(state.currentUser, state.currentUser.photoUrl, 42);
+
+  const myTitle = document.getElementById('myAnalyticsTitle');
+  if (myTitle) myTitle.textContent = `Inzichten van ${state.currentUser.name}`;
+
+  // Bereken persoonlijke parameters
+  const myRegs = state.registrations.filter(r => r.userId === state.currentUser.id);
+  const presentRegs = myRegs.filter(r => r.status === 'present');
+  const maybeRegs = myRegs.filter(r => r.status === 'maybe');
+  const absentRegs = myRegs.filter(r => r.status === 'absent');
+
+  let totalKm = 0;
+  presentRegs.forEach(r => {
+    const s = state.sessions.find(sess => sess.id === r.sessionId);
+    if (s && s.distanceKm) {
+      totalKm += parseFloat(s.distanceKm) || 0;
+    }
+  });
+
+  document.getElementById('myTotalKm').textContent = `${totalKm.toFixed(1)} km`;
+  document.getElementById('myPresentCount').textContent = presentRegs.length;
+  document.getElementById('myMaybeCount').textContent = maybeRegs.length;
+  document.getElementById('myAbsentCount').textContent = absentRegs.length;
+
+  // Activiteiten tabel vullen
+  const tableBody = document.getElementById('myActivitiesTableBody');
+  if (tableBody) {
+    if (myRegs.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">Je hebt je nog niet ingeschreven voor events.</td></tr>`;
+    } else {
+      tableBody.innerHTML = myRegs.map(r => {
+        const s = state.sessions.find(sess => sess.id === r.sessionId);
+        if (!s) return '';
+        const statusBadge = r.status === 'present' ? '<span class="badge bg-success">Aanwezig</span>' : r.status === 'maybe' ? '<span class="badge bg-warning text-dark">Misschien</span>' : '<span class="badge bg-secondary">Afgemeld</span>';
+        const typeBadge = s.sessionType === 'event' ? '🎯 Event' : s.sessionType === 'social' ? '🥂 Social' : '🏃 Sport';
+
+        return `
+          <tr>
+            <td><small class="fw-semibold">${formatDateNL(s.date)}</small></td>
+            <td><strong>${s.title}</strong><br><small class="text-muted">${s.location}</small></td>
+            <td><span class="badge bg-light text-dark border">${typeBadge}</span></td>
+            <td><strong class="text-primary">${s.distanceKm ? `${s.distanceKm} km` : '-'}</strong></td>
+            <td>${statusBadge}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('myAnalyticsModal')).show();
+}
+
+// --- ONTWIKKELAARS TEAM ANALYTICS & PARAMETERS DASHBOARD (EXCLUSIEF VOOR KENNY) ---
+function openDevAnalyticsModal() {
+  if (!state.currentUser || state.currentUser.role !== 'developer') {
+    showToast('Toegang geweigerd. Deze functie is exclusief voor de app-ontwikkelaar.', 'danger');
+    return;
+  }
+
+  // Als er nog geen selectie is, selecteer standaard alle goedgekeurde gebruikers
+  if (devAnalyticsSelectedUserIds.size === 0) {
+    state.users.forEach(u => devAnalyticsSelectedUserIds.add(u.id));
+  }
+
+  renderDevAnalyticsUserChips();
+  updateDevAnalyticsDashboard();
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('devAnalyticsModal')).show();
+}
+
+function renderDevAnalyticsUserChips() {
+  const container = document.getElementById('devAnalyticsUserChipsContainer');
+  if (!container) return;
+
+  container.innerHTML = state.users.map(u => {
+    const isSelected = devAnalyticsSelectedUserIds.has(u.id);
+    return `
+      <label class="user-filter-chip ${isSelected ? 'active' : ''}" onclick="toggleDevAnalyticsUser('${u.id}')">
+        <span class="me-1">${renderUserAvatar(u, u.photoUrl, 20)}</span>
+        <span>${u.name}</span>
+        <i class="bi ${isSelected ? 'bi-check-circle-fill text-warning ms-1' : 'bi-circle text-muted ms-1'}"></i>
+      </label>
+    `;
+  }).join('');
+}
+
+function toggleDevAnalyticsUser(userId) {
+  if (devAnalyticsSelectedUserIds.has(userId)) {
+    devAnalyticsSelectedUserIds.delete(userId);
+  } else {
+    devAnalyticsSelectedUserIds.add(userId);
+  }
+  renderDevAnalyticsUserChips();
+  updateDevAnalyticsDashboard();
+}
+
+function selectAllDevAnalyticsUsers(select) {
+  if (select) {
+    state.users.forEach(u => devAnalyticsSelectedUserIds.add(u.id));
+  } else {
+    devAnalyticsSelectedUserIds.clear();
+  }
+  renderDevAnalyticsUserChips();
+  updateDevAnalyticsDashboard();
+}
+
+function updateDevAnalyticsDashboard() {
+  const selectedUsers = state.users.filter(u => devAnalyticsSelectedUserIds.has(u.id));
+
+  let totalKmAll = 0;
+  let totalPresentAll = 0;
+
+  const userStats = selectedUsers.map(u => {
+    const userRegs = state.registrations.filter(r => r.userId === u.id);
+    const presentRegs = userRegs.filter(r => r.status === 'present');
+    const maybeRegs = userRegs.filter(r => r.status === 'maybe');
+    const absentRegs = userRegs.filter(r => r.status === 'absent');
+
+    let userKm = 0;
+    presentRegs.forEach(r => {
+      const s = state.sessions.find(sess => sess.id === r.sessionId);
+      if (s && s.distanceKm) userKm += parseFloat(s.distanceKm) || 0;
+    });
+
+    totalKmAll += userKm;
+    totalPresentAll += presentRegs.length;
+
+    return {
+      user: u,
+      totalKm: userKm,
+      presentCount: presentRegs.length,
+      maybeCount: maybeRegs.length,
+      absentCount: absentRegs.length,
+      regs: userRegs
+    };
+  });
+
+  const avgKm = selectedUsers.length > 0 ? (totalKmAll / selectedUsers.length) : 0;
+
+  document.getElementById('devSelectedUserCount').textContent = selectedUsers.length;
+  document.getElementById('devSelectedTotalKm').textContent = `${totalKmAll.toFixed(1)} km`;
+  document.getElementById('devSelectedTotalPresent').textContent = totalPresentAll;
+  document.getElementById('devSelectedAvgKm').textContent = `${avgKm.toFixed(1)} km`;
+
+  // Tabel vullen
+  const tableBody = document.getElementById('devAnalyticsTableBody');
+  if (tableBody) {
+    if (userStats.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">Geen gebruikers geselecteerd in het filter. Selecteer gebruikers hierboven.</td></tr>`;
+    } else {
+      tableBody.innerHTML = userStats.map(stat => {
+        const u = stat.user;
+        const enrolledEventsNames = stat.regs.map(r => {
+          const s = state.sessions.find(sess => sess.id === r.sessionId);
+          return s ? `${s.title} (${r.status})` : '';
+        }).filter(Boolean).join(', ') || 'Nog geen events';
+
+        return `
+          <tr>
+            <td class="ps-3">
+              <div class="d-flex align-items-center">
+                <span class="me-2">${renderUserAvatar(u, u.photoUrl, 32)}</span>
+                <div>
+                  <strong class="d-block text-dark">${u.name}</strong>
+                  <small class="text-muted">${u.email}</small>
+                </div>
+              </div>
+            </td>
+            <td><span class="badge ${u.role === 'developer' ? 'bg-warning text-dark' : u.role === 'admin' ? 'bg-primary' : 'bg-light text-dark border'}">${u.role}</span></td>
+            <td><strong class="text-primary fs-6">${stat.totalKm.toFixed(1)} km</strong></td>
+            <td><span class="badge bg-success-subtle text-success fs-6">${stat.presentCount}</span></td>
+            <td><span class="badge bg-warning-subtle text-warning">${stat.maybeCount}</span></td>
+            <td><span class="badge bg-secondary-subtle text-secondary">${stat.absentCount}</span></td>
+            <td class="text-end pe-3" style="max-width:240px;">
+              <small class="text-muted text-truncate d-block" title="${enrolledEventsNames}">
+                ${enrolledEventsNames}
+              </small>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+}
+
+function exportDevAnalyticsCsv() {
+  const selectedUsers = state.users.filter(u => devAnalyticsSelectedUserIds.has(u.id));
+  let csv = 'Naam;Email;Rol;Status;Totaal Km;Aanwezig;Misschien;Afgemeld\n';
+
+  selectedUsers.forEach(u => {
+    const userRegs = state.registrations.filter(r => r.userId === u.id);
+    const presentRegs = userRegs.filter(r => r.status === 'present');
+    const maybeRegs = userRegs.filter(r => r.status === 'maybe');
+    const absentRegs = userRegs.filter(r => r.status === 'absent');
+
+    let userKm = 0;
+    presentRegs.forEach(r => {
+      const s = state.sessions.find(sess => sess.id === r.sessionId);
+      if (s && s.distanceKm) userKm += parseFloat(s.distanceKm) || 0;
+    });
+
+    csv += `"${u.name}";"${u.email}";"${u.role}";"${u.status || 'approved'}";${userKm.toFixed(1)};${presentRegs.length};${maybeRegs.length};${absentRegs.length}\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `eventapp-team-analytics-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// --- MIJN PROFIEL, FOTO UPLOAD & GDPR EXPORT ---
 function openProfileModal() {
   if (!state.currentUser) return;
   document.getElementById('profileName').value = state.currentUser.name;
   document.getElementById('profileEmail').value = state.currentUser.email;
   document.getElementById('profilePhone').value = state.currentUser.phone || '';
   document.getElementById('profileEmergency').value = state.currentUser.emergencyContact || '';
+
+  renderProfileAvatarPreview();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('profileModal')).show();
+}
+
+function renderProfileAvatarPreview() {
+  const preview = document.getElementById('profilePhotoPreview');
+  if (!preview || !state.currentUser) return;
+  preview.innerHTML = renderUserAvatar(state.currentUser, state.currentUser.photoUrl, 56);
+}
+
+function handlePhotoUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    showToast('Selecteer een geldig afbeeldingsbestand (JPG, PNG).', 'danger');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const img = new Image();
+    img.onload = function() {
+      // Schaal afbeelding naar compact formaat (max 120px) om cloud en opslag licht te houden
+      const canvas = document.createElement('canvas');
+      const MAX_SIZE = 120;
+      let width = img.width;
+      let height = img.height;
+      if (width > height) {
+        if (width > MAX_SIZE) {
+          height = Math.round((height * MAX_SIZE) / width);
+          width = MAX_SIZE;
+        }
+      } else {
+        if (height > MAX_SIZE) {
+          width = Math.round((width * MAX_SIZE) / height);
+          height = MAX_SIZE;
+        }
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+      state.currentUser.photoUrl = dataUrl;
+      const uIndex = state.users.findIndex(u => u.id === state.currentUser.id);
+      if (uIndex >= 0) {
+        state.users[uIndex].photoUrl = dataUrl;
+        saveUsers();
+      }
+      saveCurrentUser();
+      showToast('Profielfoto succesvol ingesteld!', 'success');
+      renderProfileAvatarPreview();
+      renderApp();
+    };
+    img.src = evt.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeProfilePhoto() {
+  if (!state.currentUser) return;
+  state.currentUser.photoUrl = null;
+  const uIndex = state.users.findIndex(u => u.id === state.currentUser.id);
+  if (uIndex >= 0) {
+    state.users[uIndex].photoUrl = null;
+    saveUsers();
+  }
+  saveCurrentUser();
+  showToast('Profielfoto verwijderd. Er worden nu 3 initialen getoond.', 'info');
+  renderProfileAvatarPreview();
+  renderApp();
 }
 
 function handleProfileUpdate(e) {
@@ -1179,7 +1719,7 @@ function exportGdprJson() {
 function downloadFullBackup() {
   const backup = {
     app: "Even'Tapp",
-    versie: '3.0',
+    versie: '3.1',
     timestamp: new Date().toISOString(),
     users: state.users,
     sessions: state.sessions,
