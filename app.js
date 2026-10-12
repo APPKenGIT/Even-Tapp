@@ -120,102 +120,6 @@ async function getInitialUsers() {
   ];
 }
 
-function getInitialSessions() {
-  const today = new Date();
-  const d1 = new Date(today.getTime() + 5 * 86400000).toISOString().split('T')[0];
-  const d2 = new Date(today.getTime() + 14 * 86400000).toISOString().split('T')[0];
-  const dEvent = new Date(today.getTime() + 35 * 86400000).toISOString().split('T')[0];
-
-  return [
-    {
-      id: 'sess_1',
-      title: '🎯 Jaarlijkse Teambijeenkomst & Kick-off',
-      sessionType: 'event',
-      date: dEvent,
-      startTime: '19:00',
-      location: 'Congrescentrum / Zaal De Ark, Gent',
-      distanceKm: null,
-      targetPace: '',
-      description: 'Gezamenlijke kick-off voor het nieuwe seizoen! Presentatie van de planning en doelen, aansluitend receptie en netwerken.',
-      routeUrl: '',
-      creatorId: 'usr_dev_1',
-      creatorName: 'Kenny De Meester',
-      createdAt: '2026-10-09'
-    },
-    {
-      id: 'sess_2',
-      title: '🏃 Sportieve Buitenactiviteit & Teambuilding',
-      sessionType: 'training',
-      date: d1,
-      startTime: '09:30',
-      location: 'Domein Puyenbroeck (Parking 1, Wachtebeke)',
-      distanceKm: 15.0,
-      targetPace: 'Recreatief / Gezellig samen',
-      description: 'Ontspannen sport- en wandelactiviteit in het groen. Iedereen kan aansluiten op eigen tempo! Na afloop drinken we iets samen in de cafetaria.',
-      routeUrl: 'https://maps.google.com/?q=Puyenbroeck',
-      creatorId: 'usr_admin_1',
-      creatorName: 'Koen Demeester',
-      createdAt: '2026-10-09'
-    },
-    {
-      id: 'sess_3',
-      title: '🥂 Zomer Drink & Netwerk BBQ',
-      sessionType: 'social',
-      date: d2,
-      startTime: '18:00',
-      location: 'Parkkaffee, Mariakerke (Gent)',
-      distanceKm: null,
-      targetPace: '',
-      description: 'Gezellig napraten en ontspannen met het voltallige team. Graag vooraf intekenen voor een vlotte planning van de catering!',
-      routeUrl: '',
-      creatorId: 'usr_user_1',
-      creatorName: 'Sarah De Smet',
-      createdAt: '2026-10-09'
-    }
-  ];
-}
-
-function getInitialRegistrations() {
-  return [
-    {
-      id: 'reg_1',
-      sessionId: 'sess_1',
-      userId: 'usr_dev_1',
-      userName: 'Kenny De Meester',
-      status: 'present',
-      note: 'Aanwezig voor de opening.',
-      registeredAt: new Date().toISOString()
-    },
-    {
-      id: 'reg_2',
-      sessionId: 'sess_1',
-      userId: 'usr_admin_1',
-      userName: 'Koen Demeester',
-      status: 'present',
-      note: 'Zorgt voor de verwelkoming.',
-      registeredAt: new Date().toISOString()
-    },
-    {
-      id: 'reg_3',
-      sessionId: 'sess_2',
-      userId: 'usr_admin_1',
-      userName: 'Koen Demeester',
-      status: 'present',
-      note: 'Wandelschoenen aangeraden.',
-      registeredAt: new Date().toISOString()
-    },
-    {
-      id: 'reg_4',
-      sessionId: 'sess_2',
-      userId: 'usr_user_1',
-      userName: 'Sarah De Smet',
-      status: 'present',
-      note: 'Kan 2 personen meenemen met de wagen.',
-      registeredAt: new Date().toISOString()
-    }
-  ];
-}
-
 // --- OPSLAG EN STILLE ACHTERGRONDSYNC ---
 async function loadState() {
   const storedUsers = localStorage.getItem(STORAGE_KEYS.USERS);
@@ -223,13 +127,9 @@ async function loadState() {
   const storedRegs = localStorage.getItem(STORAGE_KEYS.REGISTRATIONS);
   const storedCurrent = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
 
-  if (!storedUsers) {
-    state.users = await getInitialUsers();
-    saveUsers();
-  } else {
+  if (storedUsers) {
     try {
       state.users = JSON.parse(storedUsers);
-      // Garandeer dat elke bestaande gebruiker status approved heeft
       state.users.forEach(u => {
         if (!u.status) u.status = 'approved';
         if (u.email === 'kennydm94@gmail.com') {
@@ -240,26 +140,27 @@ async function loadState() {
     } catch(e) {
       state.users = [];
     }
+  } else {
+    state.users = await getInitialUsers();
+    saveUsers();
   }
 
-  if (!storedSessions) {
-    state.sessions = getInitialSessions();
-    saveSessions();
-  } else {
+  // GEEN VOORBEELD EVENTS! Firebase is de single source of truth.
+  if (storedSessions) {
     try { state.sessions = JSON.parse(storedSessions); } catch(e) { state.sessions = []; }
+  } else {
+    state.sessions = [];
   }
 
-  if (!storedRegs) {
-    state.registrations = getInitialRegistrations();
-    saveRegistrations();
-  } else {
+  if (storedRegs) {
     try { state.registrations = JSON.parse(storedRegs); } catch(e) { state.registrations = []; }
+  } else {
+    state.registrations = [];
   }
 
   if (storedCurrent) {
     try {
       state.currentUser = JSON.parse(storedCurrent);
-      // Synchroniseer actuele rol/status uit de users tabel
       const liveUser = state.users.find(u => u.id === state.currentUser.id);
       if (liveUser) {
         state.currentUser = { ...liveUser };
@@ -273,12 +174,12 @@ async function loadState() {
 
   state.syncUrl = DEFAULT_FIREBASE_SYNC_URL;
 
-  // Stille cloud sync op de achtergrond
+  // Haal ALTIJD direct de echte data op uit Firebase bij het opstarten
   if (state.syncUrl) {
-    pullCloudData();
+    await pullCloudData();
+  } else {
+    renderApp();
   }
-
-  renderApp();
 }
 
 function saveUsers() {
@@ -304,7 +205,7 @@ function saveCurrentUser() {
   }
 }
 
-// --- STILLE FIREBASE CLOUD SYNC ---
+// --- STILLE FIREBASE CLOUD SYNC (SINGLE SOURCE OF TRUTH) ---
 async function pullCloudData() {
   if (!state.syncUrl) return;
   try {
@@ -312,22 +213,41 @@ async function pullCloudData() {
     const res = await fetch(url);
     if (res.ok) {
       const data = await res.json();
-      if (data && data.sessions) {
-        state.sessions = data.sessions;
-        state.registrations = data.registrations || state.registrations;
-        if (data.users) {
+      if (data && typeof data === 'object') {
+        // Laad uitsluitend wat in de Firebase database staat (geen injectie van fake demo-events!)
+        state.sessions = Array.isArray(data.sessions) ? data.sessions : [];
+        state.registrations = Array.isArray(data.registrations) ? data.registrations : [];
+        if (Array.isArray(data.users) && data.users.length > 0) {
           state.users = data.users;
-          state.users.forEach(u => { if (!u.status) u.status = 'approved'; });
+          state.users.forEach(u => {
+            if (!u.status) u.status = 'approved';
+            if (u.email === 'kennydm94@gmail.com') {
+              u.role = 'developer';
+              u.status = 'approved';
+            }
+          });
         }
         localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(state.sessions));
         localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(state.registrations));
         localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(state.users));
 
-        // Update actieve currentUser indien gewijzigd door dev
         if (state.currentUser) {
           const fresh = state.users.find(u => u.id === state.currentUser.id);
           if (fresh) state.currentUser = { ...fresh };
         }
+
+        renderApp();
+      } else if (data === null) {
+        // Database is leeg: bewaar huidige sessies/users
+        await pushCloudData();
+        renderApp();
+      }
+    }
+  } catch (err) {
+    console.warn("Background sync pull:", err);
+    renderApp();
+  }
+}
 
         renderApp();
       } else if (data === null) {
@@ -646,6 +566,10 @@ function setFilter(filterType) {
     btn.className = btn.dataset.filter === filterType ? 'btn btn-forest text-white fw-semibold btn-sm' : 'btn btn-outline-secondary bg-white fw-semibold btn-sm';
   });
   renderSessionCards();
+  if (filterType === 'all') {
+    const el = document.getElementById('sessionsContainer');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 // --- AUTHENTICATIE MET GOEDKEURINGEN ---
@@ -1776,3 +1700,36 @@ document.addEventListener('DOMContentLoaded', () => {
     navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW reg error:', err));
   }
 });
+
+// Globale window koppelingen voor gegarandeerde werking van alle onclick handlers
+window.openSessionForm = openSessionForm;
+window.openMyAnalyticsModal = openMyAnalyticsModal;
+window.openDevRolesModal = openDevRolesModal;
+window.openDevAnalyticsModal = openDevAnalyticsModal;
+window.openProfileModal = openProfileModal;
+window.openSessionDetail = openSessionDetail;
+window.setFilter = setFilter;
+window.setMyRsvp = setMyRsvp;
+window.saveRsvpNote = saveRsvpNote;
+window.logout = logout;
+window.handleLogin = handleLogin;
+window.handleRegister = handleRegister;
+window.handleSessionFormSubmit = handleSessionFormSubmit;
+window.editSession = editSession;
+window.deleteSession = deleteSession;
+window.approveUser = approveUser;
+window.rejectUser = rejectUser;
+window.deleteUser = deleteUser;
+window.devEditRsvp = devEditRsvp;
+window.devRemoveRsvp = devRemoveRsvp;
+window.toggleDevAnalyticsUser = toggleDevAnalyticsUser;
+window.selectAllDevAnalyticsUsers = selectAllDevAnalyticsUsers;
+window.exportDevAnalyticsCsv = exportDevAnalyticsCsv;
+window.handlePhotoUpload = handlePhotoUpload;
+window.removeProfilePhoto = removeProfilePhoto;
+window.handleProfileUpdate = handleProfileUpdate;
+window.handlePasswordChange = handlePasswordChange;
+window.exportGdprJson = exportGdprJson;
+window.downloadFullBackup = downloadFullBackup;
+window.restoreBackupFromFile = restoreBackupFromFile;
+

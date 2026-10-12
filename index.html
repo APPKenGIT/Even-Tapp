@@ -26,12 +26,16 @@
   <!-- Toast notificaties container -->
   <div id="toastContainer" class="position-fixed top-0 end-0 p-3" style="z-index: 1080; max-width: 420px;"></div>
 
-  <!-- Navigatiebalk -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-forest sticky-top shadow-sm py-2">
-    <div class="container">
-      <a class="navbar-brand d-flex align-items-center fw-bold text-white me-auto" href="#" onclick="return false;">
-        <span class="fs-4 me-2">📅</span>
-        <span>Even<span class="text-accent">'Tapp</span></span>
+    <div class="container d-flex align-items-center">
+      <a class="brand-logo-container me-auto" href="#" onclick="setFilter('all'); return false;" title="Naar Alle Activiteiten">
+        <div class="brand-badge me-2">
+          <i class="bi bi-calendar2-check-fill"></i>
+        </div>
+        <div class="brand-text d-flex flex-column lh-1">
+          <span class="brand-name">Even<span class="brand-accent">'T</span>app</span>
+          <span class="brand-sub">Community & Events</span>
+        </div>
       </a>
 
       <div class="d-flex align-items-center">
@@ -194,11 +198,11 @@
             <p class="text-light opacity-90 small mb-2" style="font-size: 0.95rem;">
               Plan gezamenlijke events en activiteiten. Schrijf eenvoudig in onder je eigen naam!
             </p>
-            <div class="d-flex flex-wrap gap-2">
-              <button class="btn btn-accent btn-sm px-3 py-1 text-dark fw-bold shadow-sm" onclick="openSessionForm()">
+            <div class="d-flex flex-wrap gap-2 pt-1 position-relative" style="z-index: 10;">
+              <button type="button" class="btn btn-accent btn-sm px-3 py-2 text-dark fw-bold shadow-sm" onclick="openSessionForm()">
                 <i class="bi bi-plus-lg me-1"></i> Nieuw Event Plannen
               </button>
-              <button class="btn btn-outline-light btn-sm px-3 py-1" onclick="openMyAnalyticsModal()">
+              <button type="button" class="btn btn-outline-light btn-sm px-3 py-2 fw-semibold shadow-sm" onclick="openMyAnalyticsModal()">
                 <i class="bi bi-bar-chart-fill me-1"></i> Mijn Inzichten (Dashboard)
               </button>
             </div>
