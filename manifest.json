@@ -1,7 +1,7 @@
 {
-  "name": "Dodentocht Teamtraining Planner",
-  "short_name": "Dodentocht",
-  "description": "Planning & aanwezigheidsregistratie voor teamtrainingen en 100km Dodentocht",
+  "name": "Even'Tapp - Event & Activiteiten Planner",
+  "short_name": "Even'Tapp",
+  "description": "Centrale planner voor gezamenlijke events, activiteiten en aanwezigheidsregistratie",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#1B4332",

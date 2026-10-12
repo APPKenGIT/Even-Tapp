@@ -1,22 +1,22 @@
 /**
- * Dodentocht Teamtraining Planner - GitHub Pages Client Application
- * Bevat authenticatie, GDPR-wachtwoordhashing (SHA-256), sessieplanning, intekeningen,
- * exclusief rollenbeheer voor de ontwikkelaar en optionele Cloud Sync.
+ * Even'Tapp - Event & Activiteiten Planner
+ * Client-Side Webapplicatie voor GitHub Pages met stille Firebase Cloud Sync.
+ * Bevat authenticatie, GDPR-wachtwoordhashing (SHA-256), eventplanning, intekeningen,
+ * en exclusief rollenbeheer voor de ontwikkelaar (kennydm94@gmail.com).
  */
 
-// --- STATE MANAGEMENT ---
+// --- STATE MANAGEMENT & OPSLAG ---
 const STORAGE_KEYS = {
-  USERS: 'dodentocht_users_v2',
-  SESSIONS: 'dodentocht_sessions_v2',
-  REGISTRATIONS: 'dodentocht_registrations_v2',
-  CURRENT_USER: 'dodentocht_current_user_v2',
-  SYNC_CONFIG: 'dodentocht_sync_config_v2'
+  USERS: 'eventapp_users_v3',
+  SESSIONS: 'eventapp_sessions_v3',
+  REGISTRATIONS: 'eventapp_registrations_v3',
+  CURRENT_USER: 'eventapp_current_user_v3',
+  SYNC_CONFIG: 'eventapp_sync_config_v3'
 };
 
-const PASSWORD_SALT = 'dodentocht_salt_2026_gdpr_veilig';
+const PASSWORD_SALT = 'eventapp_secure_salt_gdpr_2026';
 
-// --- CLOUD SYNC CONFIGURATIE (GOOGLE FIREBASE REALTIME DATABASE) ---
-// Jouw gekoppelde live Firebase Realtime Database:
+// Standaard gekoppelde Firebase Realtime Database (werkt stil op de achtergrond)
 const DEFAULT_FIREBASE_SYNC_URL = 'https://even-tapp-default-rtdb.europe-west1.firebasedatabase.app';
 
 let state = {
@@ -27,6 +27,8 @@ let state = {
   activeFilter: 'all',
   syncUrl: DEFAULT_FIREBASE_SYNC_URL
 };
+
+let currentDetailSessionId = null;
 
 // --- GDPR CRYPTOGRAFISCHE WACHTWOORD HASHING (Web Crypto API) ---
 async function hashPassword(password) {
@@ -39,9 +41,9 @@ async function hashPassword(password) {
 
 // --- INITIAL DATA SEEDING (bij eerste opstart) ---
 async function getInitialUsers() {
-  const devPass = await hashPassword('KennyDodentocht2026!');
-  const coachPass = await hashPassword('Coach2026!');
-  const runnerPass = await hashPassword('Loper2026!');
+  const devPass = await hashPassword('KennyEvenTapp2026!');
+  const adminPass = await hashPassword('Admin2026!');
+  const memberPass = await hashPassword('Lid2026!');
 
   return [
     {
@@ -55,20 +57,20 @@ async function getInitialUsers() {
       createdAt: '2026-10-09'
     },
     {
-      id: 'usr_coach_1',
-      name: 'Koen (Team Coach)',
-      email: 'coach@dodentocht.be',
-      passwordHash: coachPass,
+      id: 'usr_admin_1',
+      name: 'Koen Demeester',
+      email: 'koen@eventapp.be',
+      passwordHash: adminPass,
       role: 'admin',
       phone: '0470 12 34 56',
-      emergencyContact: 'EHBO Post Bornem',
+      emergencyContact: 'Familie Demeester',
       createdAt: '2026-10-09'
     },
     {
-      id: 'usr_sarah_1',
+      id: 'usr_user_1',
       name: 'Sarah De Smet',
-      email: 'sarah@dodentocht.be',
-      passwordHash: runnerPass,
+      email: 'sarah@eventapp.be',
+      passwordHash: memberPass,
       role: 'user',
       phone: '',
       emergencyContact: '',
@@ -81,51 +83,51 @@ function getInitialSessions() {
   const today = new Date();
   const d1 = new Date(today.getTime() + 5 * 86400000).toISOString().split('T')[0];
   const d2 = new Date(today.getTime() + 14 * 86400000).toISOString().split('T')[0];
-  const dEvent = new Date(today.getTime() + 75 * 86400000).toISOString().split('T')[0];
+  const dEvent = new Date(today.getTime() + 35 * 86400000).toISOString().split('T')[0];
 
   return [
     {
-      id: 'sess_event_1',
-      title: '🏆 100km Dodentocht (Het Hoofdevent)',
+      id: 'sess_1',
+      title: '🎯 Jaarlijkse Teambijeenkomst & Kick-off',
       sessionType: 'event',
       date: dEvent,
-      startTime: '21:00',
-      location: 'Startzone Dodentocht, Bornem',
-      distanceKm: 100.0,
-      targetPace: '5.5 - 6.0 km/u',
-      description: 'Het officiële doel! We verzamelen 2 uur voor de start voor de gezamenlijke teamfoto, briefing en rugnummers.',
-      routeUrl: 'https://www.dodentocht.be',
+      startTime: '19:00',
+      location: 'Congrescentrum / Zaal De Ark, Gent',
+      distanceKm: null,
+      targetPace: '',
+      description: 'Gezamenlijke kick-off voor het nieuwe seizoen! Presentatie van de planning en doelen, aansluitend receptie en netwerken.',
+      routeUrl: '',
       creatorId: 'usr_dev_1',
       creatorName: 'Kenny De Meester',
       createdAt: '2026-10-09'
     },
     {
-      id: 'sess_train_1',
-      title: 'Eerste Teamtraining: Scheldeland Lus',
+      id: 'sess_2',
+      title: '🏃 Sportieve Buitenactiviteit & Teambuilding',
       sessionType: 'training',
       date: d1,
-      startTime: '08:30',
-      location: 'Kerkplein, Bornem (Grote Markt)',
-      distanceKm: 21.5,
-      targetPace: '5.8 km/u',
-      description: 'Opstarttraining langs de Scheldedijken. Zorg voor voldoende water en geteste wandelschoenen. Na afloop koffie!',
-      routeUrl: 'https://maps.google.com/?q=Bornem',
-      creatorId: 'usr_coach_1',
-      creatorName: 'Koen (Team Coach)',
+      startTime: '09:30',
+      location: 'Domein Puyenbroeck (Parking 1, Wachtebeke)',
+      distanceKm: 15.0,
+      targetPace: 'Recreatief / Gezellig samen',
+      description: 'Ontspannen sport- en wandelactiviteit in het groen. Iedereen kan aansluiten op eigen tempo! Na afloop drinken we iets samen in de cafetaria.',
+      routeUrl: 'https://maps.google.com/?q=Puyenbroeck',
+      creatorId: 'usr_admin_1',
+      creatorName: 'Koen Demeester',
       createdAt: '2026-10-09'
     },
     {
-      id: 'sess_train_2',
-      title: 'Nachttraining: Test met Hoofdlamp',
-      sessionType: 'training',
+      id: 'sess_3',
+      title: '🥂 Zomer Drink & Netwerk BBQ',
+      sessionType: 'social',
       date: d2,
-      startTime: '22:00',
-      location: 'Station Puurs (Parking Voorkant)',
-      distanceKm: 35.0,
-      targetPace: '5.5 km/u',
-      description: 'Voorbereiding op de nachtelijke uren. Breng fluohesje, hoofdlampje en reservebatterijen mee.',
-      routeUrl: 'https://maps.google.com/?q=Station+Puurs',
-      creatorId: 'usr_sarah_1',
+      startTime: '18:00',
+      location: 'Parkkaffee, Mariakerke (Gent)',
+      distanceKm: null,
+      targetPace: '',
+      description: 'Gezellig napraten en ontspannen met het voltallige team. Graag vooraf intekenen voor een vlotte planning van de catering!',
+      routeUrl: '',
+      creatorId: 'usr_user_1',
       creatorName: 'Sarah De Smet',
       createdAt: '2026-10-09'
     }
@@ -136,83 +138,80 @@ function getInitialRegistrations() {
   return [
     {
       id: 'reg_1',
-      sessionId: 'sess_event_1',
+      sessionId: 'sess_1',
       userId: 'usr_dev_1',
       userName: 'Kenny De Meester',
       status: 'present',
-      note: 'Ticket binnen! Klaar voor de 100km.',
+      note: 'Aanwezig voor de opening.',
       registeredAt: new Date().toISOString()
     },
     {
       id: 'reg_2',
-      sessionId: 'sess_event_1',
-      userId: 'usr_coach_1',
-      userName: 'Koen (Team Coach)',
+      sessionId: 'sess_1',
+      userId: 'usr_admin_1',
+      userName: 'Koen Demeester',
       status: 'present',
-      note: 'Startvak 1 - Neemt EHBO kit mee.',
+      note: 'Zorgt voor de verwelkoming.',
       registeredAt: new Date().toISOString()
     },
     {
       id: 'reg_3',
-      sessionId: 'sess_train_1',
-      userId: 'usr_coach_1',
-      userName: 'Koen (Team Coach)',
+      sessionId: 'sess_2',
+      userId: 'usr_admin_1',
+      userName: 'Koen Demeester',
       status: 'present',
-      note: 'Verzamelen om 08:15',
+      note: 'Wandelschoenen aangeraden.',
       registeredAt: new Date().toISOString()
     },
     {
       id: 'reg_4',
-      sessionId: 'sess_train_1',
-      userId: 'usr_sarah_1',
+      sessionId: 'sess_2',
+      userId: 'usr_user_1',
       userName: 'Sarah De Smet',
       status: 'present',
-      note: 'Kan 2 mensen meenemen vanaf Sint-Niklaas.',
+      note: 'Kan 2 personen meenemen met de wagen.',
       registeredAt: new Date().toISOString()
     }
   ];
 }
 
-// --- OPSLAG & SYNCHRONISATIE ---
+// --- OPSLAG EN STILLE ACHTERGRONDSYNC ---
 async function loadState() {
   const storedUsers = localStorage.getItem(STORAGE_KEYS.USERS);
   const storedSessions = localStorage.getItem(STORAGE_KEYS.SESSIONS);
   const storedRegs = localStorage.getItem(STORAGE_KEYS.REGISTRATIONS);
   const storedCurrent = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-  const storedSync = localStorage.getItem(STORAGE_KEYS.SYNC_CONFIG);
 
   if (!storedUsers) {
     state.users = await getInitialUsers();
     saveUsers();
   } else {
-    state.users = JSON.parse(storedUsers);
+    try { state.users = JSON.parse(storedUsers); } catch(e) { state.users = []; }
   }
 
   if (!storedSessions) {
     state.sessions = getInitialSessions();
     saveSessions();
   } else {
-    state.sessions = JSON.parse(storedSessions);
+    try { state.sessions = JSON.parse(storedSessions); } catch(e) { state.sessions = []; }
   }
 
   if (!storedRegs) {
     state.registrations = getInitialRegistrations();
     saveRegistrations();
   } else {
-    state.registrations = JSON.parse(storedRegs);
+    try { state.registrations = JSON.parse(storedRegs); } catch(e) { state.registrations = []; }
   }
 
   if (storedCurrent) {
-    state.currentUser = JSON.parse(storedCurrent);
+    try { state.currentUser = JSON.parse(storedCurrent); } catch(e) { state.currentUser = null; }
+  } else {
+    state.currentUser = null;
   }
 
-  if (storedSync) {
-    state.syncUrl = storedSync;
-  } else if (DEFAULT_FIREBASE_SYNC_URL) {
-    state.syncUrl = DEFAULT_FIREBASE_SYNC_URL;
-  }
+  state.syncUrl = DEFAULT_FIREBASE_SYNC_URL;
 
-  // Voer optionele Cloud Sync uit indien ingesteld
+  // Stille cloud sync op de achtergrond
   if (state.syncUrl) {
     pullCloudData();
   }
@@ -243,7 +242,7 @@ function saveCurrentUser() {
   }
 }
 
-// --- OPTIONELE REALTIME CLOUD SYNC (voor GitHub Pages) ---
+// --- STILLE FIREBASE CLOUD SYNC (GEEN UI INDICATIE OF STATUS) ---
 async function pullCloudData() {
   if (!state.syncUrl) return;
   try {
@@ -259,16 +258,14 @@ async function pullCloudData() {
         localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(state.registrations));
         localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(state.users));
         renderApp();
-        updateSyncBadge(true);
       } else if (data === null) {
-        // Firebase database is nog maagdelijk leeg: initialiseer meteen met onze data!
+        // Firebase is nog leeg: initialiseer stil met de huidige data
         await pushCloudData();
-        updateSyncBadge(true);
       }
     }
   } catch (err) {
-    console.warn("Cloud sync fetch error:", err);
-    updateSyncBadge(false);
+    // Stille foutafhandeling
+    console.warn("Background sync pull:", err);
   }
 }
 
@@ -286,26 +283,14 @@ async function pushCloudData() {
         updatedAt: new Date().toISOString()
       })
     });
-    updateSyncBadge(true);
   } catch (err) {
-    console.warn("Cloud sync push error:", err);
-    updateSyncBadge(false);
+    // Stille foutafhandeling
+    console.warn("Background sync push:", err);
   }
 }
 
-function updateSyncBadge(isOnline) {
-  const badge = document.getElementById('syncIndicator');
-  if (!badge) return;
-  if (state.syncUrl && isOnline) {
-    badge.className = 'badge bg-success-subtle text-success border border-success-subtle px-2 py-1';
-    badge.innerHTML = '<span class="sync-dot sync-online"></span> Cloud Gesynchroniseerd';
-  } else if (state.syncUrl && !isOnline) {
-    badge.className = 'badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1';
-    badge.innerHTML = '<span class="sync-dot sync-local"></span> Sync Offline';
-  } else {
-    badge.className = 'badge bg-warning-subtle text-dark border border-warning-subtle px-2 py-1';
-    badge.innerHTML = '<span class="sync-dot sync-local"></span> Lokale Opslag';
-  }
+function updateSyncBadge() {
+  // Bewust leeg: geen UI-indicatoren conform wens
 }
 
 // --- DATUM FORMATTERING (NL) ---
@@ -325,6 +310,7 @@ function formatDateNL(dateStr) {
 // --- TOAST NOTIFICATIES ---
 function showToast(message, type = 'success') {
   const container = document.getElementById('toastContainer');
+  if (!container) return;
   const toastEl = document.createElement('div');
   toastEl.className = `alert alert-${type} shadow-sm alert-dismissible fade show d-flex align-items-center mb-2`;
   toastEl.innerHTML = `
@@ -336,11 +322,26 @@ function showToast(message, type = 'success') {
   setTimeout(() => {
     toastEl.classList.remove('show');
     setTimeout(() => toastEl.remove(), 250);
-  }, 4500);
+  }, 4000);
 }
 
-// --- RENDER HOOFDAPPLICATIE ---
+// --- RENDER APPLICATIE & LOGIN WALL GATE ---
 function renderApp() {
+  const authGateView = document.getElementById('authGateView');
+  const appMainView = document.getElementById('appMainView');
+
+  // LOGIN WALL: Eerst inloggen voor je iets kan zien!
+  if (!state.currentUser) {
+    if (authGateView) authGateView.classList.remove('d-none');
+    if (appMainView) appMainView.classList.add('d-none');
+    renderNavbar();
+    return;
+  }
+
+  // Ingelogd: toon het volledige platform
+  if (authGateView) authGateView.classList.add('d-none');
+  if (appMainView) appMainView.classList.remove('d-none');
+
   renderNavbar();
   renderStats();
   renderSessionCards();
@@ -352,71 +353,71 @@ function renderNavbar() {
 
   if (state.currentUser) {
     const isDev = state.currentUser.role === 'developer';
-    const roleLabel = isDev ? '👑 Ontwikkelaar' : state.currentUser.role === 'admin' ? '⭐ Administrator' : '🏃 Deelnemer';
+    const roleLabel = isDev ? '👑 Ontwikkelaar' : state.currentUser.role === 'admin' ? '⭐ Administrator' : '👤 Lid';
 
     if (devNav) {
       devNav.innerHTML = isDev ? `
         <button class="btn btn-outline-warning text-warning btn-sm fw-semibold me-2" onclick="openDevRolesModal()">
-          <i class="bi bi-shield-lock-fill me-1"></i> Rollenbeheer (Dev)
+          <i class="bi bi-shield-lock-fill me-1"></i> Rollenbeheer
         </button>
       ` : '';
     }
 
-    userNav.innerHTML = `
-      <div class="dropdown">
-        <button class="btn btn-dark text-white dropdown-toggle d-flex align-items-center p-1 px-2 rounded-pill border-0" type="button" data-bs-toggle="dropdown">
-          <span class="avatar-chip bg-forest text-white me-2">${state.currentUser.name[0].toUpperCase()}</span>
-          <div class="text-start me-2 d-none d-sm-block">
-            <span class="d-block fw-bold lh-1" style="font-size:0.88rem;">${state.currentUser.name}</span>
-            <small class="text-white-50" style="font-size:0.7rem;">${roleLabel}</small>
-          </div>
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end shadow border-0">
-          <li><a class="dropdown-item" href="#" onclick="openProfileModal()"><i class="bi bi-person me-2"></i> Mijn Profiel & GDPR</a></li>
-          ${isDev ? '<li><a class="dropdown-item text-warning" href="#" onclick="openDevRolesModal()"><i class="bi bi-sliders me-2"></i> Rollen Toekennen</a></li>' : ''}
-          <li><a class="dropdown-item" href="#" onclick="openSyncModal()"><i class="bi bi-cloud-arrow-up me-2"></i> Cloud Synchronisatie</a></li>
-          <li><hr class="dropdown-divider"></li>
-          <li><a class="dropdown-item text-danger" href="#" onclick="logout()"><i class="bi bi-box-arrow-right me-2"></i> Uitloggen</a></li>
-        </ul>
-      </div>
-    `;
+    if (userNav) {
+      userNav.innerHTML = `
+        <div class="dropdown">
+          <button class="btn btn-dark text-white dropdown-toggle d-flex align-items-center p-1 px-2 rounded-pill border-0" type="button" data-bs-toggle="dropdown">
+            <span class="avatar-chip bg-forest text-white me-2" style="width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;">${state.currentUser.name[0].toUpperCase()}</span>
+            <div class="text-start me-2 d-none d-sm-block">
+              <span class="d-block fw-bold lh-1" style="font-size:0.88rem;">${state.currentUser.name}</span>
+              <small class="text-white-50" style="font-size:0.7rem;">${roleLabel}</small>
+            </div>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+            <li><a class="dropdown-item" href="#" onclick="openProfileModal(); return false;"><i class="bi bi-person me-2"></i> Mijn Profiel & Privacy</a></li>
+            ${isDev ? '<li><a class="dropdown-item text-warning" href="#" onclick="openDevRolesModal(); return false;"><i class="bi bi-sliders me-2"></i> Rollen Toekennen</a></li>' : ''}
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="#" onclick="logout(); return false;"><i class="bi bi-box-arrow-right me-2"></i> Uitloggen</a></li>
+          </ul>
+        </div>
+      `;
+    }
   } else {
     if (devNav) devNav.innerHTML = '';
-    userNav.innerHTML = `
-      <button class="btn btn-outline-light btn-sm px-3 me-2" onclick="openAuthModal('login')">
-        <i class="bi bi-box-arrow-in-right me-1"></i> Inloggen
-      </button>
-      <button class="btn btn-accent btn-sm px-3 fw-bold text-dark" onclick="openAuthModal('register')">
-        <i class="bi bi-person-plus me-1"></i> Registreren
-      </button>
-    `;
+    if (userNav) userNav.innerHTML = '';
   }
-
-  updateSyncBadge(true);
 }
 
 function renderStats() {
-  const trainCount = state.sessions.filter(s => s.sessionType === 'training').length;
   const eventCount = state.sessions.filter(s => s.sessionType === 'event').length;
+  const trainCount = state.sessions.filter(s => s.sessionType === 'training' || s.sessionType === 'social').length;
   const totalKm = state.sessions.reduce((acc, s) => acc + (parseFloat(s.distanceKm) || 0), 0);
 
-  document.getElementById('statTrainings').textContent = trainCount;
-  document.getElementById('statEvents').textContent = eventCount;
-  document.getElementById('statKm').textContent = `${totalKm.toFixed(1)} km`;
+  const elEvents = document.getElementById('statEvents');
+  const elTrain = document.getElementById('statTrainings');
+  const elKm = document.getElementById('statKm');
+
+  if (elEvents) elEvents.textContent = eventCount;
+  if (elTrain) elTrain.textContent = trainCount;
+  if (elKm) elKm.textContent = `${totalKm.toFixed(1)} km`;
 }
 
 function renderSessionCards() {
   const container = document.getElementById('sessionsContainer');
+  if (!container) return;
+
   let list = [...state.sessions];
 
-  // Sorteren op datum
+  // Sorteren op datum en tijd
   list.sort((a, b) => new Date(a.date + 'T' + a.startTime) - new Date(b.date + 'T' + b.startTime));
 
   // Filters
-  if (state.activeFilter === 'training') {
-    list = list.filter(s => s.sessionType === 'training');
-  } else if (state.activeFilter === 'event') {
+  if (state.activeFilter === 'event') {
     list = list.filter(s => s.sessionType === 'event');
+  } else if (state.activeFilter === 'training') {
+    list = list.filter(s => s.sessionType === 'training');
+  } else if (state.activeFilter === 'social') {
+    list = list.filter(s => s.sessionType === 'social');
   } else if (state.activeFilter === 'my' && state.currentUser) {
     const mySessionIds = state.registrations
       .filter(r => r.userId === state.currentUser.id && r.status === 'present')
@@ -429,11 +430,11 @@ function renderSessionCards() {
       <div class="col-12 text-center py-5">
         <div class="card border-0 shadow-sm p-5">
           <i class="bi bi-calendar-x fs-1 text-muted mb-3"></i>
-          <h4 class="fw-bold">Geen sessies gevonden</h4>
-          <p class="text-muted">Er zijn momenteel geen trainingssessies gepland binnen deze categorie.</p>
+          <h4 class="fw-bold">Geen events gevonden</h4>
+          <p class="text-muted">Er zijn momenteel geen activiteiten gepland binnen deze categorie.</p>
           <div>
-            <button class="btn btn-forest fw-semibold" onclick="${state.currentUser ? 'openSessionForm()' : 'openAuthModal(\"login\")'}">
-              <i class="bi bi-plus-lg me-1"></i> Plan een nieuwe training
+            <button class="btn btn-forest fw-semibold" onclick="openSessionForm()">
+              <i class="bi bi-plus-lg me-1"></i> Plan een nieuw event
             </button>
           </div>
         </div>
@@ -444,6 +445,7 @@ function renderSessionCards() {
 
   container.innerHTML = list.map(s => {
     const isEvent = s.sessionType === 'event';
+    const isSocial = s.sessionType === 'social';
     const presentRegs = state.registrations.filter(r => r.sessionId === s.id && r.status === 'present');
     const maybeRegs = state.registrations.filter(r => r.sessionId === s.id && r.status === 'maybe');
 
@@ -457,10 +459,10 @@ function renderSessionCards() {
         } else if (myReg.status === 'maybe') {
           myStatusBadge = `<span class="badge bg-warning text-dark px-2 py-1 rounded-pill"><i class="bi bi-question-circle-fill me-1"></i> Misschien</span>`;
         } else {
-          myStatusBadge = `<span class="badge bg-secondary text-white px-2 py-1 rounded-pill">Afwezig</span>`;
+          myStatusBadge = `<span class="badge bg-secondary text-white px-2 py-1 rounded-pill">Niet aanwezig</span>`;
         }
       } else {
-        myStatusBadge = `<span class="badge bg-light text-muted border px-2 py-1 rounded-pill">Nog niet gereageerd</span>`;
+        myStatusBadge = `<span class="badge bg-light text-muted border px-2 py-1 rounded-pill">Nog niet ingeschreven</span>`;
       }
     }
 
@@ -470,21 +472,26 @@ function renderSessionCards() {
       ['admin', 'developer'].includes(state.currentUser.role)
     );
 
+    let typeBadgeHtml = '<span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill fw-bold">🏃 Sport & Training</span>';
+    if (isEvent) {
+      typeBadgeHtml = '<span class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-bold">🎯 Evenement</span>';
+    } else if (isSocial) {
+      typeBadgeHtml = '<span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-2 rounded-pill fw-bold">🥂 Social / Bijeenkomst</span>';
+    }
+
     return `
       <div class="col-lg-6 mb-4">
-        <div class="card h-100 session-card border-0 shadow-sm ${isEvent ? 'border-start border-warning border-5' : 'border-start border-success border-5'}">
+        <div class="card h-100 session-card border-0 shadow-sm ${isEvent ? 'border-start border-warning border-5' : isSocial ? 'border-start border-info border-5' : 'border-start border-success border-5'}">
           <div class="card-body p-4 d-flex flex-column">
 
-            <!-- Type badge + mijn status -->
+            <!-- Type badge + status -->
             <div class="d-flex justify-content-between align-items-start mb-3">
-              <span class="badge ${isEvent ? 'bg-warning text-dark' : 'bg-success-subtle text-success border border-success-subtle'} px-3 py-2 rounded-pill fw-bold">
-                ${isEvent ? '🏆 Uiteindelijk Event' : '🏃 Training'}
-              </span>
+              <div>${typeBadgeHtml}</div>
               <div>${myStatusBadge}</div>
             </div>
 
             <!-- Titel -->
-            <h4 class="card-title fw-bold text-dark mb-3 cursor-pointer" onclick="openSessionDetail('${s.id}')">
+            <h4 class="card-title fw-bold text-dark mb-3 cursor-pointer" onclick="openSessionDetail('${s.id}')" style="cursor: pointer;">
               ${s.title}
             </h4>
 
@@ -514,8 +521,8 @@ function renderSessionCards() {
               <div class="meta-item">
                 <i class="bi bi-signpost-split text-primary me-2"></i>
                 <div>
-                  <strong class="d-block small text-muted">Afstand</strong>
-                  <span>${s.distanceKm ? `<strong>${s.distanceKm} km</strong>` : '<em class="text-muted">Vrij te kiezen</em>'}</span>
+                  <strong class="d-block small text-muted">Afstand / Info</strong>
+                  <span>${s.distanceKm ? `<strong>${s.distanceKm} km</strong>` : s.targetPace ? s.targetPace : '<em class="text-muted">-</em>'}</span>
                 </div>
               </div>
             </div>
@@ -532,7 +539,7 @@ function renderSessionCards() {
             <!-- Footer: Deelnemers en knoppen -->
             <div class="d-flex align-items-center justify-content-between pt-3 border-top mt-auto">
               <div class="d-flex align-items-center">
-                <div class="participant-avatars-icon bg-forest-subtle text-forest rounded-circle me-2 p-2">
+                <div class="bg-forest-subtle text-forest rounded-circle me-2 p-2 d-flex align-items-center justify-content-center" style="width:36px;height:36px;">
                   <i class="bi bi-people-fill"></i>
                 </div>
                 <div>
@@ -564,37 +571,43 @@ function setFilter(filterType) {
   renderSessionCards();
 }
 
-// --- AUTHENTICATIE & REGISTRATIE (DIRECT ACTIEF) ---
-function openAuthModal(mode = 'login') {
-  document.getElementById('authLoginTab').className = mode === 'login' ? 'nav-link active fw-bold text-forest' : 'nav-link text-muted';
-  document.getElementById('authRegisterTab').className = mode === 'register' ? 'nav-link active fw-bold text-forest' : 'nav-link text-muted';
-  document.getElementById('loginPane').className = mode === 'login' ? 'tab-pane fade show active' : 'tab-pane fade';
-  document.getElementById('registerPane').className = mode === 'register' ? 'tab-pane fade show active' : 'tab-pane fade';
-
-  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('authModal'));
-  modal.show();
-}
-
+// --- AUTHENTICATIE & REGISTRATIE ---
 async function handleLogin(e) {
   e.preventDefault();
-  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
-  const password = document.getElementById('loginPassword').value;
+  const emailInput = document.getElementById('loginEmail');
+  const passInput = document.getElementById('loginPassword');
+  if (!emailInput || !passInput) return;
+
+  const email = emailInput.value.trim().toLowerCase();
+  const password = passInput.value;
 
   const user = state.users.find(u => u.email.toLowerCase() === email);
   if (!user) {
-    showToast('Geen account gevonden met dit e-mailadres.', 'danger');
+    showToast('Geen account gevonden met dit e-mailadres. Maak gerust een nieuw account aan!', 'danger');
     return;
   }
 
   const hash = await hashPassword(password);
-  if (user.passwordHash !== hash) {
-    showToast('Ongeldig wachtwoord.', 'danger');
+  let isValid = (user.passwordHash === hash);
+
+  // Ondersteun voor het ontwikkelaarsaccount beide bekende wachtwoorden
+  if (!isValid && email === 'kennydm94@gmail.com') {
+    const devHash1 = await hashPassword('KennyEvenTapp2026!');
+    const devHash2 = await hashPassword('KennyDodentocht2026!');
+    if (hash === devHash1 || hash === devHash2) {
+      isValid = true;
+      user.passwordHash = hash;
+      saveUsers();
+    }
+  }
+
+  if (!isValid) {
+    showToast('Ongeldig wachtwoord. Vraag de beheerder (Kenny) om een reset als je het vergeten bent.', 'danger');
     return;
   }
 
   state.currentUser = user;
   saveCurrentUser();
-  bootstrap.Modal.getInstance(document.getElementById('authModal')).hide();
   showToast(`Welkom terug, ${user.name}! Je bent ingelogd.`, 'success');
   renderApp();
 }
@@ -603,7 +616,7 @@ async function handleRegister(e) {
   e.preventDefault();
   const name = document.getElementById('regName').value.trim();
   const email = document.getElementById('regEmail').value.trim().toLowerCase();
-  const phone = document.getElementById('regPhone').value.trim();
+  const phone = document.getElementById('regPhone') ? document.getElementById('regPhone').value.trim() : '';
   const password = document.getElementById('regPassword').value;
   const passwordConfirm = document.getElementById('regPasswordConfirm').value;
 
@@ -640,8 +653,7 @@ async function handleRegister(e) {
   state.currentUser = newUser;
   saveCurrentUser();
 
-  bootstrap.Modal.getInstance(document.getElementById('authModal')).hide();
-  showToast(`Welkom ${name}! Je account is direct geactiveerd en je bent nu ingelogd.`, 'success');
+  showToast(`Account aangemaakt! Welkom bij Even'Tapp, ${name}.`, 'success');
   renderApp();
 }
 
@@ -652,40 +664,68 @@ function logout() {
   renderApp();
 }
 
-// --- SESSIE DETAIL & INTEKENEN ---
+// --- SESSIE DETAILS & INTEKENEN ---
 function openSessionDetail(sessionId) {
+  currentDetailSessionId = sessionId;
   const sess = state.sessions.find(s => s.id === sessionId);
   if (!sess) return;
 
   const modalEl = document.getElementById('sessionDetailModal');
   const isEvent = sess.sessionType === 'event';
+  const isSocial = sess.sessionType === 'social';
 
-  // Header
+  // Header & Type Badge
   document.getElementById('detailTitle').textContent = sess.title;
-  document.getElementById('detailBadge').className = `badge ${isEvent ? 'bg-warning text-dark' : 'bg-success-subtle text-success'} px-3 py-1 rounded-pill`;
-  document.getElementById('detailBadge').textContent = isEvent ? '🏆 Uiteindelijk Sportevent' : '🏃 Teamtrainingssessie';
+  const badgeEl = document.getElementById('detailBadge');
+  if (badgeEl) {
+    badgeEl.className = `badge ${isEvent ? 'bg-warning text-dark' : isSocial ? 'bg-info text-dark' : 'bg-success text-white'} px-3 py-1 rounded-pill`;
+    badgeEl.textContent = isEvent ? '🎯 Evenement' : isSocial ? '🥂 Bijeenkomst / Social' : '🏃 Sport & Training';
+  }
 
-  // Details
+  // Parameters
   document.getElementById('detailDate').textContent = formatDateNL(sess.date);
   document.getElementById('detailTime').textContent = `${sess.startTime} uur`;
   document.getElementById('detailLocation').textContent = sess.location;
   document.getElementById('detailMapsLink').href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sess.location)}`;
-  document.getElementById('detailDistance').textContent = sess.distanceKm ? `${sess.distanceKm} km` : 'Vrij te kiezen';
-  document.getElementById('detailPace').textContent = sess.targetPace || 'Vrij / Regulier tempo';
-  document.getElementById('detailDescription').textContent = sess.description || 'Geen extra toelichting.';
+
+  // Afstand row
+  const distRow = document.getElementById('detailDistanceRow');
+  if (distRow) {
+    if (sess.distanceKm) {
+      document.getElementById('detailDistance').textContent = `${sess.distanceKm} km`;
+      distRow.style.display = 'flex';
+    } else {
+      distRow.style.display = 'none';
+    }
+  }
+
+  // Pace / Info row
+  const paceRow = document.getElementById('detailPaceRow');
+  if (paceRow) {
+    if (sess.targetPace) {
+      document.getElementById('detailPace').textContent = sess.targetPace;
+      paceRow.style.display = 'flex';
+    } else {
+      paceRow.style.display = 'none';
+    }
+  }
+
+  document.getElementById('detailDescription').textContent = sess.description || 'Geen extra toelichting vermeld.';
   document.getElementById('detailCreator').textContent = sess.creatorName;
 
   // Route link
   const routeBox = document.getElementById('detailRouteContainer');
-  if (sess.routeUrl) {
-    routeBox.innerHTML = `<a href="${sess.routeUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-forest btn-sm"><i class="bi bi-link-45deg me-1"></i> Open Route / GPX / Kaart</a>`;
-    routeBox.style.display = 'block';
-  } else {
-    routeBox.style.display = 'none';
+  if (routeBox) {
+    if (sess.routeUrl) {
+      routeBox.innerHTML = `<a href="${sess.routeUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-forest btn-sm"><i class="bi bi-link-45deg me-1"></i> Open Route / Website / Link</a>`;
+      routeBox.style.display = 'block';
+    } else {
+      routeBox.style.display = 'none';
+    }
   }
 
   // WhatsApp Deelknop
-  const shareText = encodeURIComponent(`🥾 *Dodentocht Teamtraining: ${sess.title}*\n📅 Datum: ${formatDateNL(sess.date)}\n⏰ Tijd: ${sess.startTime}u\n📍 Start: ${sess.location}\n📏 Afstand: ${sess.distanceKm ? sess.distanceKm + ' km' : 'Variabel'}\n\n👉 Teken hier in: ${window.location.href}`);
+  const shareText = encodeURIComponent(`📅 *Even'Tapp: ${sess.title}*\n📍 Locatie: ${sess.location}\n🕒 Datum & Tijd: ${formatDateNL(sess.date)} om ${sess.startTime}u\n${sess.distanceKm ? `📏 Afstand: ${sess.distanceKm} km\n` : ''}\n👉 Schrijf in via Even'Tapp:\n${window.location.href}`);
   document.getElementById('detailShareWhatsApp').href = `https://api.whatsapp.com/send?text=${shareText}`;
 
   // Knoppen bewerken / verwijderen
@@ -695,99 +735,112 @@ function openSessionDetail(sessionId) {
   );
 
   const editContainer = document.getElementById('detailEditControls');
-  if (canEdit) {
-    editContainer.innerHTML = `
-      <button class="btn btn-outline-primary btn-sm me-2" onclick="editSession('${sess.id}')">
-        <i class="bi bi-pencil-square me-1"></i> Bewerken
-      </button>
-      <button class="btn btn-outline-danger btn-sm" onclick="deleteSession('${sess.id}')">
-        <i class="bi bi-trash3 me-1"></i> Verwijderen
-      </button>
-    `;
-  } else {
-    editContainer.innerHTML = '';
+  if (editContainer) {
+    if (canEdit) {
+      editContainer.innerHTML = `
+        <button class="btn btn-outline-primary btn-sm me-2" onclick="editSession('${sess.id}')">
+          <i class="bi bi-pencil-square me-1"></i> Bewerken
+        </button>
+        <button class="btn btn-outline-danger btn-sm" onclick="deleteSession('${sess.id}')">
+          <i class="bi bi-trash3 me-1"></i> Verwijderen
+        </button>
+      `;
+    } else {
+      editContainer.innerHTML = '';
+    }
   }
 
-  // Intekenen formulier
-  renderRsvpForm(sess.id);
+  // Intekenstatus huidige gebruiker instellen
+  updateRsvpButtonStates(sess.id);
   renderAttendeesList(sess.id);
 
   bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
 
-function renderRsvpForm(sessionId) {
-  const container = document.getElementById('detailRsvpContainer');
-  if (!state.currentUser) {
-    container.innerHTML = `
-      <div class="alert alert-info d-flex align-items-center mb-0">
-        <i class="bi bi-info-circle fs-4 me-2"></i>
-        <div>
-          <strong>Meld je aan om in te tekenen:</strong>
-          Log in of maak een account om onder jouw naam aanwezig te melden.
-          <div class="mt-2">
-            <button class="btn btn-forest btn-sm me-2" onclick="bootstrap.Modal.getInstance(document.getElementById('sessionDetailModal')).hide(); openAuthModal('login');">Inloggen</button>
-            <button class="btn btn-accent btn-sm text-dark fw-bold" onclick="bootstrap.Modal.getInstance(document.getElementById('sessionDetailModal')).hide(); openAuthModal('register');">Registreren</button>
-          </div>
-        </div>
-      </div>
-    `;
-    return;
+function updateRsvpButtonStates(sessionId) {
+  const btnPresent = document.getElementById('rsvpBtnPresent');
+  const btnMaybe = document.getElementById('rsvpBtnMaybe');
+  const btnAbsent = document.getElementById('rsvpBtnAbsent');
+  const noteInput = document.getElementById('rsvpNoteInput');
+
+  if (!btnPresent || !btnMaybe || !btnAbsent) return;
+
+  const myReg = state.currentUser ? state.registrations.find(r => r.sessionId === sessionId && r.userId === state.currentUser.id) : null;
+  const curStatus = myReg ? myReg.status : null;
+
+  btnPresent.className = curStatus === 'present' ? 'btn btn-success fw-bold btn-sm py-2' : 'btn btn-outline-success fw-bold btn-sm py-2';
+  btnMaybe.className = curStatus === 'maybe' ? 'btn btn-warning text-dark fw-bold btn-sm py-2' : 'btn btn-outline-warning fw-bold btn-sm py-2';
+  btnAbsent.className = curStatus === 'absent' ? 'btn btn-secondary fw-bold btn-sm py-2' : 'btn btn-outline-secondary fw-bold btn-sm py-2';
+
+  if (noteInput) {
+    noteInput.value = myReg ? (myReg.note || '') : '';
+  }
+}
+
+function setMyRsvp(status) {
+  if (!state.currentUser || !currentDetailSessionId) return;
+
+  const sessionId = currentDetailSessionId;
+  const noteInput = document.getElementById('rsvpNoteInput');
+  const note = noteInput ? noteInput.value.trim() : '';
+
+  const existingIndex = state.registrations.findIndex(r => r.sessionId === sessionId && r.userId === state.currentUser.id);
+  if (existingIndex >= 0) {
+    state.registrations[existingIndex].status = status;
+    if (note) state.registrations[existingIndex].note = note;
+    state.registrations[existingIndex].registeredAt = new Date().toISOString();
+  } else {
+    state.registrations.push({
+      id: 'reg_' + Date.now(),
+      sessionId,
+      userId: state.currentUser.id,
+      userName: state.currentUser.name,
+      status,
+      note,
+      registeredAt: new Date().toISOString()
+    });
   }
 
-  const myReg = state.registrations.find(r => r.sessionId === sessionId && r.userId === state.currentUser.id);
-  const curStatus = myReg ? myReg.status : 'present';
-  const curNote = myReg ? myReg.note || '' : '';
+  saveRegistrations();
+  updateRsvpButtonStates(sessionId);
+  renderAttendeesList(sessionId);
+  renderSessionCards();
 
-  container.innerHTML = `
-    <form onsubmit="handleRsvpSubmit(event, '${sessionId}')">
-      <div class="mb-3">
-        <label class="form-label small text-muted text-uppercase fw-bold">Jouw Aanwezigheid</label>
-        <div class="d-grid gap-2">
-          <input type="radio" class="btn-check" name="rsvpStatus" id="rsvp_present" value="present" ${curStatus === 'present' ? 'checked' : ''}>
-          <label class="btn btn-outline-success text-start p-2" for="rsvp_present">
-            <i class="bi bi-check-circle-fill fs-5 me-2"></i> <strong>Aanwezig</strong> (Ik doe mee!)
-          </label>
+  const labels = { present: 'Aanwezig', maybe: 'Misschien', absent: 'Niet aanwezig' };
+  showToast(`Deelname bijgewerkt: ${labels[status]}`, 'success');
+}
 
-          <input type="radio" class="btn-check" name="rsvpStatus" id="rsvp_maybe" value="maybe" ${curStatus === 'maybe' ? 'checked' : ''}>
-          <label class="btn btn-outline-warning text-start p-2" for="rsvp_maybe">
-            <i class="bi bi-question-circle-fill fs-5 me-2"></i> <strong>Misschien</strong> (Nog onzeker)
-          </label>
+function saveRsvpNote() {
+  if (!state.currentUser || !currentDetailSessionId) return;
 
-          <input type="radio" class="btn-check" name="rsvpStatus" id="rsvp_absent" value="absent" ${curStatus === 'absent' ? 'checked' : ''}>
-          <label class="btn btn-outline-secondary text-start p-2" for="rsvp_absent">
-            <i class="bi bi-x-circle-fill fs-5 me-2"></i> <strong>Afwezig</strong> (Kan helaas niet)
-          </label>
-        </div>
-      </div>
+  const sessionId = currentDetailSessionId;
+  const noteInput = document.getElementById('rsvpNoteInput');
+  const note = noteInput ? noteInput.value.trim() : '';
 
-      <div class="mb-3">
-        <label class="form-label small text-muted text-uppercase fw-bold">Opmerking (optioneel)</label>
-        <input type="text" class="form-control" id="rsvpNote" placeholder="Bv. Carpool vanuit Antwerpen, loop 20km mee..." value="${curNote}">
-      </div>
-
-      <button type="submit" class="btn btn-forest w-100 py-2 fw-bold">
-        <i class="bi bi-check2-circle me-1"></i> Keuze Opslaan
-      </button>
-
-      ${myReg ? `
-        <button type="button" class="btn btn-link text-muted btn-sm w-100 mt-2 text-decoration-none" onclick="cancelRsvp('${sessionId}')">
-          <i class="bi bi-dash-circle me-1"></i> Inschrijving intrekken
-        </button>
-      ` : ''}
-    </form>
-  `;
+  const existing = state.registrations.find(r => r.sessionId === sessionId && r.userId === state.currentUser.id);
+  if (existing) {
+    existing.note = note;
+    saveRegistrations();
+    renderAttendeesList(sessionId);
+    showToast('Opmerking opgeslagen!', 'success');
+  } else {
+    // Registreer als aanwezig met de opmerking
+    setMyRsvp('present');
+  }
 }
 
 function renderAttendeesList(sessionId) {
-  const container = document.getElementById('detailAttendeesContainer');
+  const container = document.getElementById('detailAttendeesList');
+  const countBadge = document.getElementById('detailAttendeeCountBadge');
   const regs = state.registrations.filter(r => r.sessionId === sessionId);
   const present = regs.filter(r => r.status === 'present');
   const maybe = regs.filter(r => r.status === 'maybe');
 
-  document.getElementById('detailAttendeesCount').textContent = `${present.length} aanwezig`;
+  if (countBadge) countBadge.textContent = `${present.length} aanwezig`;
+  if (!container) return;
 
   if (present.length === 0 && maybe.length === 0) {
-    container.innerHTML = '<p class="text-muted small fst-italic mb-0">Nog geen inschrijvingen voor deze sessie.</p>';
+    container.innerHTML = '<p class="text-muted small fst-italic p-2 mb-0">Nog geen inschrijvingen voor dit event.</p>';
     return;
   }
 
@@ -798,9 +851,9 @@ function renderAttendeesList(sessionId) {
       html += `
         <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
           <div class="d-flex align-items-center">
-            <span class="avatar-chip bg-forest text-white me-2" style="width:30px;height:30px;font-size:0.8rem;">${r.userName[0].toUpperCase()}</span>
+            <span class="avatar-chip bg-forest text-white me-2" style="width:28px;height:28px;font-size:0.8rem;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;">${(r.userName || 'U')[0].toUpperCase()}</span>
             <div>
-              <strong class="text-dark d-block">${r.userName}</strong>
+              <strong class="text-dark d-block small">${r.userName}</strong>
               ${r.note ? `<small class="text-muted fst-italic">"${r.note}"</small>` : ''}
             </div>
           </div>
@@ -817,9 +870,9 @@ function renderAttendeesList(sessionId) {
       html += `
         <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center">
           <div class="d-flex align-items-center">
-            <span class="avatar-chip bg-warning text-dark me-2" style="width:30px;height:30px;font-size:0.8rem;">${r.userName[0].toUpperCase()}</span>
+            <span class="avatar-chip bg-warning text-dark me-2" style="width:28px;height:28px;font-size:0.8rem;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;">${(r.userName || 'U')[0].toUpperCase()}</span>
             <div>
-              <span class="text-dark d-block">${r.userName}</span>
+              <span class="text-dark d-block small">${r.userName}</span>
               ${r.note ? `<small class="text-muted fst-italic">"${r.note}"</small>` : ''}
             </div>
           </div>
@@ -833,51 +886,10 @@ function renderAttendeesList(sessionId) {
   container.innerHTML = html;
 }
 
-function handleRsvpSubmit(e, sessionId) {
-  e.preventDefault();
-  if (!state.currentUser) return;
-
-  const selectedStatus = document.querySelector('input[name="rsvpStatus"]:checked').value;
-  const note = document.getElementById('rsvpNote').value.trim();
-
-  const existingIndex = state.registrations.findIndex(r => r.sessionId === sessionId && r.userId === state.currentUser.id);
-  if (existingIndex >= 0) {
-    state.registrations[existingIndex].status = selectedStatus;
-    state.registrations[existingIndex].note = note;
-    state.registrations[existingIndex].registeredAt = new Date().toISOString();
-  } else {
-    state.registrations.push({
-      id: 'reg_' + Date.now(),
-      sessionId,
-      userId: state.currentUser.id,
-      userName: state.currentUser.name,
-      status: selectedStatus,
-      note,
-      registeredAt: new Date().toISOString()
-    });
-  }
-
-  saveRegistrations();
-  showToast('Je aanwezigheid is bijgewerkt!', 'success');
-  renderRsvpForm(sessionId);
-  renderAttendeesList(sessionId);
-  renderSessionCards();
-}
-
-function cancelRsvp(sessionId) {
-  if (!state.currentUser) return;
-  state.registrations = state.registrations.filter(r => !(r.sessionId === sessionId && r.userId === state.currentUser.id));
-  saveRegistrations();
-  showToast('Je inschrijving is ingetrokken.', 'info');
-  renderRsvpForm(sessionId);
-  renderAttendeesList(sessionId);
-  renderSessionCards();
-}
-
 // --- SESSIE AANMAKEN & BEWERKEN ---
 function openSessionForm(editSessionId = null) {
   if (!state.currentUser) {
-    openAuthModal('login');
+    showToast('Log eerst in om een event aan te maken.', 'info');
     return;
   }
 
@@ -888,7 +900,7 @@ function openSessionForm(editSessionId = null) {
   if (editSessionId) {
     const sess = state.sessions.find(s => s.id === editSessionId);
     if (!sess) return;
-    titleEl.textContent = 'Sessie Bewerken';
+    titleEl.textContent = 'Event Bewerken';
     idInput.value = sess.id;
     document.getElementById('formTitle').value = sess.title;
     document.getElementById('formSessionType').value = sess.sessionType;
@@ -900,11 +912,11 @@ function openSessionForm(editSessionId = null) {
     document.getElementById('formRouteUrl').value = sess.routeUrl || '';
     document.getElementById('formDescription').value = sess.description || '';
   } else {
-    titleEl.textContent = 'Nieuwe Trainingssessie Plannen';
+    titleEl.textContent = 'Nieuw Event Plannen';
     idInput.value = '';
     document.getElementById('sessionForm').reset();
     document.getElementById('formDate').value = new Date().toISOString().split('T')[0];
-    document.getElementById('formStartTime').value = '09:00';
+    document.getElementById('formStartTime').value = '19:00';
   }
 
   bootstrap.Modal.getOrCreateInstance(modalEl).show();
@@ -916,13 +928,13 @@ function editSession(sessionId) {
 }
 
 function deleteSession(sessionId) {
-  if (!confirm('Weet je zeker dat je deze sessie wilt verwijderen?')) return;
+  if (!confirm('Weet je zeker dat je dit event wilt verwijderen?')) return;
   state.sessions = state.sessions.filter(s => s.id !== sessionId);
   state.registrations = state.registrations.filter(r => r.sessionId !== sessionId);
   saveSessions();
   saveRegistrations();
   bootstrap.Modal.getInstance(document.getElementById('sessionDetailModal')).hide();
-  showToast('Sessie is verwijderd.', 'info');
+  showToast('Event is verwijderd.', 'info');
   renderApp();
 }
 
@@ -955,10 +967,10 @@ function handleSessionFormSubmit(e) {
       sess.routeUrl = routeUrl;
       sess.description = description;
       saveSessions();
-      showToast('Sessie succesvol bijgewerkt!', 'success');
+      showToast('Event succesvol bijgewerkt!', 'success');
     }
   } else {
-    // Nieuwe sessie aanmaken
+    // Nieuw event aanmaken
     const newId = 'sess_' + Date.now();
     const newSess = {
       id: newId,
@@ -990,7 +1002,7 @@ function handleSessionFormSubmit(e) {
 
     saveSessions();
     saveRegistrations();
-    showToast('Nieuwe sessie aangemaakt en je bent automatisch ingetekend!', 'success');
+    showToast('Nieuw event aangemaakt en je bent automatisch ingeschreven!', 'success');
   }
 
   bootstrap.Modal.getInstance(document.getElementById('sessionFormModal')).hide();
@@ -1010,13 +1022,14 @@ function openDevRolesModal() {
 
 function renderDevUsersTable() {
   const container = document.getElementById('devUsersTableBody');
+  if (!container) return;
   container.innerHTML = state.users.map(u => {
     const isMe = state.currentUser && state.currentUser.id === u.id;
     return `
       <tr>
         <td class="ps-3">
           <div class="d-flex align-items-center">
-            <span class="avatar-chip ${u.role === 'developer' ? 'bg-warning text-dark' : u.role === 'admin' ? 'bg-primary text-white' : 'bg-secondary text-white'} me-2">
+            <span class="avatar-chip ${u.role === 'developer' ? 'bg-warning text-dark' : u.role === 'admin' ? 'bg-primary text-white' : 'bg-secondary text-white'} me-2" style="width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:bold;">
               ${u.name[0].toUpperCase()}
             </span>
             <div>
@@ -1034,7 +1047,7 @@ function renderDevUsersTable() {
         <td class="text-end pe-3">
           <div class="d-inline-flex gap-2">
             <select class="form-select form-select-sm" style="width:auto;" onchange="changeUserRole('${u.id}', this.value)" ${isMe ? 'disabled title="Je kunt je eigen rol niet wijzigen"' : ''}>
-              <option value="user" ${u.role === 'user' ? 'selected' : ''}>Deelnemer (User)</option>
+              <option value="user" ${u.role === 'user' ? 'selected' : ''}>Lid (User)</option>
               <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrator (Admin)</option>
               <option value="developer" ${u.role === 'developer' ? 'selected' : ''}>Ontwikkelaar (Dev)</option>
             </select>
@@ -1142,6 +1155,7 @@ async function handlePasswordChange(e) {
 function exportGdprJson() {
   if (!state.currentUser) return;
   const myData = {
+    app: "Even'Tapp",
     gdprVerklaring: "Overzicht persoonsgegevens conform Algemene Verordening Gegevensbescherming (AVG/GDPR).",
     gebruiker: {
       id: state.currentUser.id,
@@ -1151,39 +1165,21 @@ function exportGdprJson() {
       phone: state.currentUser.phone,
       emergencyContact: state.currentUser.emergencyContact
     },
-    mijnSessies: state.sessions.filter(s => s.creatorId === state.currentUser.id),
-    mijnIntekeningen: state.registrations.filter(r => r.userId === state.currentUser.id)
+    mijnEvents: state.sessions.filter(s => s.creatorId === state.currentUser.id),
+    mijnDeelnames: state.registrations.filter(r => r.userId === state.currentUser.id)
   };
 
   const blob = new Blob([JSON.stringify(myData, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `gdpr-data-${state.currentUser.name.replace(/\s+/g, '_')}.json`;
+  a.download = `eventapp-gdpr-data-${state.currentUser.name.replace(/\s+/g, '_')}.json`;
   a.click();
-}
-
-// --- BACKUP & CLOUD SYNC MODAL ---
-function openSyncModal() {
-  document.getElementById('syncUrlInput').value = state.syncUrl || '';
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('syncModal')).show();
-}
-
-function saveSyncUrl() {
-  const val = document.getElementById('syncUrlInput').value.trim();
-  state.syncUrl = val;
-  localStorage.setItem(STORAGE_KEYS.SYNC_CONFIG, val);
-  if (val) {
-    pullCloudData();
-    showToast('Cloud Sync URL opgeslagen en gesynchroniseerd!', 'success');
-  } else {
-    updateSyncBadge(false);
-    showToast('Cloud Sync uitgeschakeld. Data wordt lokaal bewaard.', 'info');
-  }
 }
 
 function downloadFullBackup() {
   const backup = {
-    versie: '2.0',
+    app: "Even'Tapp",
+    versie: '3.0',
     timestamp: new Date().toISOString(),
     users: state.users,
     sessions: state.sessions,
@@ -1192,7 +1188,7 @@ function downloadFullBackup() {
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `dodentocht-database-backup-${new Date().toISOString().split('T')[0]}.json`;
+  a.download = `even-tapp-database-backup-${new Date().toISOString().split('T')[0]}.json`;
   a.click();
 }
 
@@ -1223,11 +1219,11 @@ function restoreBackupFromFile(e) {
   reader.readAsText(file);
 }
 
-// --- INIT ---
+// --- INITIALISATIE ---
 document.addEventListener('DOMContentLoaded', () => {
   loadState();
 
-  // Automatische achtergrondsynchronisatie (elke 15s en wanneer tabblad actief wordt)
+  // Stille achtergrondsynchronisatie (elke 15s en wanneer tabblad actief wordt)
   window.addEventListener('focus', () => {
     if (state.syncUrl) pullCloudData();
   });
