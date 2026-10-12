@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Ontwikkelaar Account Activeren | Dodentocht Teamtraining{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-header bg-warning text-dark p-4 text-center">
+                    <span class="fs-1 d-block mb-1">👑</span>
+                    <h3 class="fw-bold mb-0">Welkom, App Ontwikkelaar!</h3>
+                    <small class="fw-semibold">Stel je definitieve wachtwoord in voor <strong>{{ email }}</strong></small>
+                </div>
+                <div class="card-body p-4 p-md-5">
+                    <p class="text-muted small">
+                        Jij bent aangewezen als de enige beheerder met ontwikkelaarsrechten. Stel hieronder je persoonlijke wachtwoord in om direct in te loggen en het rollenbeheer te openen.
+                    </p>
+
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="name" class="form-label fw-bold">Jouw Naam</label>
+                            <input type="text" class="form-control" id="name" name="name" value="{{ user.name if user else 'Kenny De Meester' }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label fw-bold">Nieuw Wachtwoord <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-key"></i></span>
+                                <input type="password" class="form-control" id="password" name="password" placeholder="Minimaal 6 tekens" required autofocus>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="password_confirm" class="form-label fw-bold">Bevestig Wachtwoord <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-check2-circle"></i></span>
+                                <input type="password" class="form-control" id="password_confirm" name="password_confirm" placeholder="Herhaal wachtwoord" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-forest w-100 py-2 fw-bold shadow-sm mb-3">
+                            <i class="bi bi-shield-check me-1"></i> Account Activeren & Inloggen
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

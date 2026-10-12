@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block title %}Rollenbeheer (Exclusief voor App Ontwikkelaar) | Dodentocht{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <span class="badge bg-warning text-dark px-3 py-1 rounded-pill fw-bold text-uppercase mb-2">
+                <i class="bi bi-shield-lock-fill me-1"></i> Developer Only Zone
+            </span>
+            <h2 class="fw-bold mb-0">Gebruikers- en Rollenbeheer</h2>
+            <p class="text-muted mb-0">
+                Als enige app-ontwikkelaar heb jij het exclusieve recht om gebruikersrollen (deelnemer / administrator) te beheren.
+            </p>
+        </div>
+        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Terug naar home
+        </a>
+    </div>
+
+    <!-- Uitleg over de rollen -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm rounded-3">
+                <div class="card-body">
+                    <h6 class="fw-bold text-dark d-flex align-items-center">
+                        <span class="badge bg-secondary me-2">USER</span> Deelnemer
+                    </h6>
+                    <small class="text-muted">
+                        Standaardrol. Kan sessies en events aanmaken, eigen aangemaakte sessies bewerken/verwijderen, en intekenen op aanwezigheid.
+                    </small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm rounded-3 border-start border-primary border-4">
+                <div class="card-body">
+                    <h6 class="fw-bold text-primary d-flex align-items-center">
+                        <span class="badge bg-primary me-2">ADMIN</span> Administrator
+                    </h6>
+                    <small class="text-muted">
+                        Voor coaches & teamleiders. Kan <strong>alle</strong> trainingssessies en sportevents bewerken of verwijderen, ongeacht wie ze heeft aangemaakt.
+                    </small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm rounded-3 border-start border-warning border-4">
+                <div class="card-body">
+                    <h6 class="fw-bold text-warning-emphasis d-flex align-items-center">
+                        <span class="badge bg-warning text-dark me-2">DEVELOPER</span> App Ontwikkelaar
+                    </h6>
+                    <small class="text-muted">
+                        Slechts 1 persoon. Heeft als enige de bevoegdheid om rollen toe te kennen en administrators aan te duiden.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabel met gebruikers -->
+    <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0">Geregistreerde Gebruikers ({{ users | length }})</h5>
+            <small class="text-muted">Direct rollen wijzigen en opslaan</small>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Gebruiker</th>
+                        <th>E-mail</th>
+                        <th>Huidige Rol</th>
+                        <th>Activiteit</th>
+                        <th>Geregistreerd op</th>
+                        <th class="text-end pe-4">Rol Aanpassen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td class="ps-4">
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-chip {% if u.role == 'developer' %}bg-warning text-dark{% elif u.role == 'admin' %}bg-primary text-white{% else %}bg-secondary text-white{% endif %} me-3">
+                                    {{ u.name[0] | upper }}
+                                </div>
+                                <div>
+                                    <span class="fw-bold text-dark d-block">{{ u.name }}</span>
+                                    {% if u.id == g.user.id %}
+                                        <span class="badge bg-info-subtle text-info">(Dat ben jij)</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <code class="text-secondary">{{ u.email }}</code>
+                        </td>
+                        <td>
+                            {% if u.role == 'developer' %}
+                                <span class="badge bg-warning text-dark px-2 py-1 fw-bold">
+                                    👑 Ontwikkelaar
+                                </span>
+                            {% elif u.role == 'admin' %}
+                                <span class="badge bg-primary text-white px-2 py-1 fw-bold">
+                                    ⭐ Administrator
+                                </span>
+                            {% else %}
+                                <span class="badge bg-light text-dark border px-2 py-1">
+                                    🏃 Deelnemer
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small class="text-muted d-block">
+                                <i class="bi bi-calendar-event me-1"></i> {{ u.sessions_created }} sessies gemaakt
+                            </small>
+                            <small class="text-muted d-block">
+                                <i class="bi bi-check2-circle me-1"></i> {{ u.registrations_count }} intekeningen
+                            </small>
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ u.created_at[:10] }}</small>
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="d-inline-flex align-items-center gap-2">
+                                <form method="POST" action="{{ url_for('manage_roles') }}" class="d-inline-flex align-items-center gap-2">
+                                    <input type="hidden" name="action" value="change_role">
+                                    <input type="hidden" name="user_id" value="{{ u.id }}">
+                                    <select name="role" class="form-select form-select-sm" style="width: auto;">
+                                        <option value="user" {% if u.role == 'user' %}selected{% endif %}>Deelnemer (User)</option>
+                                        <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Administrator (Admin)</option>
+                                        <option value="developer" {% if u.role == 'developer' %}selected{% endif %}>Ontwikkelaar (Dev)</option>
+                                    </select>
+                                    <button type="submit" class="btn btn-forest btn-sm fw-semibold">
+                                        Opslaan
+                                    </button>
+                                </form>
+                                <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#resetModal{{ u.id }}" title="Wachtwoord resetten">
+                                    <i class="bi bi-key-fill"></i>
+                                </button>
+                            </div>
+
+                            <!-- Modal voor Wachtwoord Reset door Ontwikkelaar -->
+                            <div class="modal fade" id="resetModal{{ u.id }}" tabindex="-1" aria-labelledby="resetModalLabel{{ u.id }}" aria-hidden="true">
+                                <div class="modal-dialog text-start">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title fw-bold text-dark" id="resetModalLabel{{ u.id }}">
+                                                <i class="bi bi-key-fill text-warning me-2"></i> Wachtwoord Resetten
+                                            </h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Sluiten"></button>
+                                        </div>
+                                        <form method="POST" action="{{ url_for('manage_roles') }}">
+                                            <input type="hidden" name="action" value="reset_password">
+                                            <input type="hidden" name="user_id" value="{{ u.id }}">
+                                            <div class="modal-body">
+                                                <p class="small text-muted mb-3">
+                                                    Stel direct een nieuw wachtwoord in voor <strong>{{ u.name }}</strong> (<code>{{ u.email }}</code>). Er is geen e-mail nodig.
+                                                </p>
+                                                <label for="new_password_{{ u.id }}" class="form-label fw-bold small">Nieuw Wachtwoord (min. 6 tekens)</label>
+                                                <input type="text" class="form-control" id="new_password_{{ u.id }}" name="new_password" placeholder="Bv. Welkom2026!" required minlength="6">
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuleren</button>
+                                                <button type="submit" class="btn btn-warning btn-sm fw-bold">Wachtwoord Direct Instellen</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

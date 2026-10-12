@@ -1,0 +1,224 @@
+:root {
+  --forest-primary: #1B4332;
+  --forest-dark: #081C15;
+  --forest-medium: #2D6A4F;
+  --forest-light: #40916C;
+  --forest-subtle: #D8F3DC;
+  --accent-gold: #FFB703;
+  --accent-orange: #FB8500;
+  --text-dark: #0F172A;
+  --text-muted: #64748B;
+  --bg-page: #F8FAFC;
+  --card-bg: #FFFFFF;
+  --border-color: #E2E8F0;
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --shadow-card: 0 4px 20px rgba(15, 23, 42, 0.05);
+  --shadow-hover: 0 10px 30px rgba(15, 23, 42, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--text-dark);
+  background-color: var(--bg-page);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Navigatie */
+.bg-forest {
+  background-color: var(--forest-primary) !important;
+}
+
+.text-forest {
+  color: var(--forest-primary) !important;
+}
+
+.text-accent {
+  color: var(--accent-gold) !important;
+}
+
+.btn-forest {
+  background-color: var(--forest-primary);
+  color: #FFFFFF;
+  border: none;
+  font-weight: 600;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.btn-forest:hover, .btn-forest:focus {
+  background-color: var(--forest-medium);
+  color: #FFFFFF;
+  transform: translateY(-1px);
+}
+
+.btn-outline-forest {
+  border: 2px solid var(--forest-primary);
+  color: var(--forest-primary);
+  background: transparent;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+.btn-outline-forest:hover {
+  background-color: var(--forest-primary);
+  color: #FFFFFF;
+}
+
+.btn-accent {
+  background-color: var(--accent-gold);
+  color: #1A1A1A;
+  font-weight: 700;
+  border: none;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.btn-accent:hover {
+  background-color: #E5A400;
+  color: #000000;
+}
+
+/* Hero Section */
+.hero-banner {
+  background: linear-gradient(135deg, var(--forest-primary) 0%, var(--forest-dark) 100%);
+  position: relative;
+  overflow: hidden;
+  border-bottom: 4px solid var(--accent-gold);
+}
+
+.hero-banner::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: radial-gradient(circle at 85% 20%, rgba(255, 183, 3, 0.18) 0%, transparent 55%);
+  pointer-events-none;
+}
+
+/* Avatar Chips */
+.avatar-chip {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+/* Kaarten */
+.session-card {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-card);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.session-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-hover);
+}
+
+.session-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  font-size: 0.88rem;
+}
+
+.meta-item i {
+  font-size: 1.2rem;
+  width: 24px;
+}
+
+.bg-forest-subtle {
+  background-color: var(--forest-subtle) !important;
+}
+
+/* Status Indicator */
+.sync-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.sync-online {
+  background-color: #10B981;
+  box-shadow: 0 0 8px #10B981;
+}
+
+.sync-local {
+  background-color: #F59E0B;
+}
+
+/* Radio buttons in RSVP */
+.btn-check:checked + .btn-outline-success {
+  background-color: #10B981;
+  color: white;
+}
+
+.btn-check:checked + .btn-outline-warning {
+  background-color: #F59E0B;
+  color: black;
+}
+
+.btn-check:checked + .btn-outline-secondary {
+  background-color: #64748B;
+  color: white;
+}
+
+.btn-check:checked + .btn-outline-forest {
+  background-color: var(--forest-primary);
+  color: white;
+}
+
+/* Modals */
+.modal-content {
+  border-radius: var(--radius-lg);
+  border: none;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+}
+
+/* WhatsApp Button */
+.btn-whatsapp {
+  background-color: #25D366;
+  color: white;
+  font-weight: 600;
+  border: none;
+}
+
+.btn-whatsapp:hover {
+  background-color: #1EBE5D;
+  color: white;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .session-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}

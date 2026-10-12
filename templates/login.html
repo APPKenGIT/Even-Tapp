@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Inloggen | Dodentocht Teamtraining{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4 p-md-5">
+                    <div class="text-center mb-4">
+                        <div class="auth-icon-circle bg-forest text-white mx-auto mb-3">
+                            <i class="bi bi-person-fill-lock fs-2"></i>
+                        </div>
+                        <h3 class="fw-bold">Inloggen</h3>
+                        <p class="text-muted small">Meld je aan om in te tekenen op sessies en trainingen te beheren</p>
+                    </div>
+
+                    <form method="POST" action="{{ url_for('login', next=next) }}">
+                        <div class="mb-3">
+                            <label for="email" class="form-label fw-bold">E-mailadres</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                                <input type="email" class="form-control" id="email" name="email" placeholder="naam@voorbeeld.be" required autofocus>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label for="password" class="form-label fw-bold mb-0">Wachtwoord</label>
+                                <a href="{{ url_for('forgot_password') }}" class="small text-muted text-decoration-none hover-forest">
+                                    Wachtwoord vergeten?
+                                </a>
+                            </div>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-key"></i></span>
+                                <input type="password" class="form-control" id="password" name="password" placeholder="••••••••" required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-forest w-100 py-2 fw-bold shadow-sm mb-3">
+                            <i class="bi bi-box-arrow-in-right me-1"></i> Inloggen
+                        </button>
+
+                        <div class="text-center mb-2">
+                            <span class="text-muted small">Nog geen account?</span>
+                            <a href="{{ url_for('register') }}" class="fw-bold text-forest text-decoration-none ms-1">Registreer hier</a>
+                        </div>
+
+                        <div class="text-center">
+                            <a href="{{ url_for('resend_confirmation') }}" class="small text-secondary text-decoration-none">
+                                <i class="bi bi-envelope me-1"></i> Bevestigingsmail opnieuw versturen
+                            </a>
+                        </div>
+                    </form>
+
+                    <!-- GDPR Waarborg -->
+                    <div class="mt-4 pt-3 border-top text-center">
+                        <div class="badge bg-light text-muted border p-2 w-100 text-wrap">
+                            <i class="bi bi-shield-check text-success me-1"></i>
+                            <strong>GDPR Veilig:</strong> Wachtwoorden zijn onomkeerbaar gehasht en nooit raadpleegbaar door beheerders.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

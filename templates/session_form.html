@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if action == 'new' %}Nieuwe Trainingssessie Plannen{% else %}Sessie Bewerken{% endif %} | Dodentocht
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-header bg-forest text-white p-4">
+                    <div class="d-flex align-items-center">
+                        <i class="bi {% if action == 'new' %}bi-calendar-plus{% else %}bi-pencil-square{% endif %} fs-3 me-3"></i>
+                        <div>
+                            <h3 class="card-title fw-bold mb-0">
+                                {% if action == 'new' %}Nieuwe Sessie of Event Plannen{% else %}Sessie Bewerken{% endif %}
+                            </h3>
+                            <small class="opacity-75">
+                                {% if action == 'new' %}
+                                    Iedere ingelogde gebruiker kan een training of sportevent voorstellen.
+                                {% else %}
+                                    Pas de parameters van deze sessie aan.
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body p-4">
+                    <div class="alert alert-info border-0 rounded-3 mb-4 d-flex align-items-start">
+                        <i class="bi bi-person-badge fs-4 text-info me-3"></i>
+                        <div>
+                            <strong>Organisator vermelding:</strong>
+                            Deze sessie wordt geregistreerd onder jouw naam: <strong class="text-dark">{{ g.user.name }}</strong>.
+                            Zowel jij als de administrators kunnen deze sessie achteraf aanpassen.
+                        </div>
+                    </div>
+
+                    <form method="POST">
+                        <!-- Type sessie -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Type Evenement <span class="text-danger">*</span></label>
+                            <div class="row g-2">
+                                <div class="col-sm-6">
+                                    <input type="radio" class="btn-check" name="session_type" id="type_training" value="training" {% if sess.session_type != 'event' %}checked{% endif %}>
+                                    <label class="btn btn-outline-forest w-100 text-start p-3" for="type_training">
+                                        <div class="fw-bold fs-6">🏃 Trainingssessie</div>
+                                        <small class="text-muted d-block">Gezamenlijke training, oefentocht of lange duurmars</small>
+                                    </label>
+                                </div>
+                                <div class="col-sm-6">
+                                    <input type="radio" class="btn-check" name="session_type" id="type_event" value="event" {% if sess.session_type == 'event' %}checked{% endif %}>
+                                    <label class="btn btn-outline-warning w-100 text-start p-3" for="type_event">
+                                        <div class="fw-bold fs-6 text-dark">🏆 Uiteindelijk Sportevent</div>
+                                        <small class="text-muted d-block">Het officiële doel (bijv. 100km Dodentocht)</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Titel -->
+                        <div class="mb-3">
+                            <label for="title" class="form-label fw-bold">Titel / Omschrijving van de sessie <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-lg" id="title" name="title" placeholder="Bv. Boswandeling Buggenhoutbos of Nachttraining 40km" value="{{ sess.title or '' }}" required>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <!-- Datum -->
+                            <div class="col-md-6">
+                                <label for="date" class="form-label fw-bold">Datum <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-calendar3"></i></span>
+                                    <input type="date" class="form-control" id="date" name="date" value="{{ sess.date or '' }}" required>
+                                </div>
+                            </div>
+
+                            <!-- Starttijd -->
+                            <div class="col-md-6">
+                                <label for="start_time" class="form-label fw-bold">Starttijd <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-clock"></i></span>
+                                    <input type="time" class="form-control" id="start_time" name="start_time" value="{{ sess.start_time or '' }}" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Startlocatie -->
+                        <div class="mb-3">
+                            <label for="location" class="form-label fw-bold">Startlocatie / Ontmoetingsplek <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-geo-alt"></i></span>
+                                <input type="text" class="form-control" id="location" name="location" placeholder="Bv. Kerkplein Bornem, Station Puurs parking, etc." value="{{ sess.location or '' }}" required>
+                            </div>
+                            <small class="text-muted">Geef een herkenbaar adres of ontmoetingspunt op zodat deelnemers elkaar makkelijk vinden.</small>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <!-- Afstand -->
+                            <div class="col-md-6">
+                                <label for="distance_km" class="form-label fw-bold">Afstand in kilometers <span class="text-muted fw-normal">(indien aangegeven)</span></label>
+                                <div class="input-group">
+                                    <input type="number" step="0.1" min="0" class="form-control" id="distance_km" name="distance_km" placeholder="Bv. 30 of 42.5 (optioneel)" value="{{ sess.distance_km if sess.distance_km is not none else '' }}">
+                                    <span class="input-group-text">km</span>
+                                </div>
+                                <small class="text-muted">Laat leeg indien de afstand nog vrij of variabel is.</small>
+                            </div>
+
+                            <!-- Streeftempo -->
+                            <div class="col-md-6">
+                                <label for="target_pace" class="form-label fw-bold">Streeftempo / Doeltempo <span class="text-muted fw-normal">(optioneel)</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-speedometer2"></i></span>
+                                    <input type="text" class="form-control" id="target_pace" name="target_pace" placeholder="Bv. 5.5 tot 6.0 km/u of Rustig tempo" value="{{ sess.target_pace or '' }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Route link -->
+                        <div class="mb-3">
+                            <label for="route_url" class="form-label fw-bold">Link naar route / GPX / Komoot <span class="text-muted fw-normal">(optioneel)</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+                                <input type="url" class="form-control" id="route_url" name="route_url" placeholder="https://www.komoot.com/tour/... of https://strava.com/..." value="{{ sess.route_url or '' }}">
+                            </div>
+                        </div>
+
+                        <!-- Beschrijving -->
+                        <div class="mb-4">
+                            <label for="description" class="form-label fw-bold">Extra Toelichting / Benodigdheden <span class="text-muted fw-normal">(optioneel)</span></label>
+                            <textarea class="form-control" id="description" name="description" rows="4" placeholder="Geef hier verdere details mee: bevoorrading, carpooling afspraken, kledij-advies (regenjas, hoofdlamp voor nachttraining), horeca-stop achteraf...">{{ sess.description or '' }}</textarea>
+                        </div>
+
+                        <!-- Knoppen -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{% if action == 'edit' %}{{ url_for('session_detail', session_id=session_id) }}{% else %}{{ url_for('index') }}{% endif %}" class="btn btn-outline-secondary">
+                                Annuleren
+                            </a>
+                            <button type="submit" class="btn btn-forest btn-lg px-4 fw-bold shadow-sm">
+                                <i class="bi bi-check-lg me-1"></i>
+                                {% if action == 'new' %}Sessie Opslaan & Publiceren{% else %}Wijzigingen Opslaan{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

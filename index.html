@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Dodentocht Teamtraining Planner</title>
+  <meta name="theme-color" content="#1B4332">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <!-- Bootstrap 5 CSS & Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-light">
+
+  <!-- Toast notificaties container -->
+  <div id="toastContainer" class="position-fixed top-0 end-0 p-3" style="z-index: 1080; max-width: 420px;"></div>
+
+  <!-- Navigatiebalk -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-forest sticky-top shadow-sm py-2">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center fw-bold text-white me-3" href="#" onclick="setFilter('all'); return false;">
+        <span class="fs-4 me-2">🥾</span>
+        <span>Team<span class="text-accent">Training</span> Dodentocht</span>
+      </a>
+
+      <!-- Status indicator (Cloud / Lokaal) -->
+      <div class="d-none d-md-flex align-items-center me-auto">
+        <span id="syncIndicator" class="badge bg-warning-subtle text-dark border px-2 py-1" onclick="openSyncModal()" style="cursor: pointer;" title="Klik om Cloud Sync / Backup te beheren">
+          <span class="sync-dot sync-local"></span> Lokale Opslag
+        </span>
+      </div>
+
+      <div class="d-flex align-items-center">
+        <!-- Developer knop (indien ingelogd als developer) -->
+        <div id="devNavContainer" class="d-flex align-items-center"></div>
+
+        <!-- Gebruikersacties / Inloggen -->
+        <div id="userNavContainer" class="d-flex align-items-center"></div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Banner -->
+  <div class="hero-banner text-white py-4 py-md-5 mb-4">
+    <div class="container">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-8">
+          <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-bold mb-2">
+            <i class="bi bi-compass me-1"></i> Road to 100KM
+          </span>
+          <h1 class="display-6 display-md-5 fw-extrabold mb-2">Teamtrainingen & Sportevents</h1>
+          <p class="lead text-light opacity-90 mb-3" style="font-size: 1.05rem;">
+            Samen trainen, opbouwen en aftellen naar de 100km Dodentocht. Iedereen kan sessies voorstellen en direct intekenen onder eigen naam!
+          </p>
+          <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-accent px-4 py-2 text-dark fw-bold shadow-sm" onclick="openSessionForm()">
+              <i class="bi bi-plus-lg me-1"></i> Nieuwe Sessie Plannen
+            </button>
+            <button class="btn btn-outline-light px-3 py-2" onclick="openSyncModal()">
+              <i class="bi bi-cloud-arrow-down me-1"></i> Cloud Sync & Backups
+            </button>
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <div class="card bg-white text-dark shadow border-0 rounded-4 p-3">
+            <h6 class="text-muted text-uppercase fw-bold mb-3 small">
+              <i class="bi bi-graph-up-arrow me-1 text-success"></i> Team Statistieken
+            </h6>
+            <div class="row g-2 text-center">
+              <div class="col-6">
+                <div class="p-2 bg-light rounded-3">
+                  <div id="statTrainings" class="fs-3 fw-bold text-forest">0</div>
+                  <small class="text-muted">Trainingen</small>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="p-2 bg-light rounded-3">
+                  <div id="statEvents" class="fs-3 fw-bold text-warning">0</div>
+                  <small class="text-muted">Hoofdevents</small>
+                </div>
+              </div>
+              <div class="col-12 mt-2">
+                <div class="p-2 bg-light rounded-3">
+                  <div id="statKm" class="fs-4 fw-bold text-primary">0 km</div>
+                  <small class="text-muted">Totaal geplande afstand</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hoofdsectie & Sessies -->
+  <div class="container mb-5 flex-grow-1">
+
+    <!-- Filters & Knoppen -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+      <div id="filterButtons" class="btn-group shadow-sm flex-wrap" role="group">
+        <button type="button" class="btn btn-forest text-white fw-semibold" data-filter="all" onclick="setFilter('all')">
+          Alle
+        </button>
+        <button type="button" class="btn btn-outline-secondary bg-white fw-semibold" data-filter="training" onclick="setFilter('training')">
+          🏃 Trainingssessies
+        </button>
+        <button type="button" class="btn btn-outline-secondary bg-white fw-semibold" data-filter="event" onclick="setFilter('event')">
+          🏆 Hoofdevents
+        </button>
+        <button type="button" class="btn btn-outline-secondary bg-white fw-semibold" data-filter="my" onclick="setFilter('my')">
+          ⭐ Mijn Inschrijvingen
+        </button>
+      </div>
+
+      <div>
+        <button class="btn btn-outline-forest fw-semibold" onclick="openSessionForm()">
+          <i class="bi bi-calendar-plus me-1"></i> Sessie Plannen
+        </button>
+      </div>
+    </div>
+
+    <!-- Lijst met Sessie Kaarten -->
+    <div id="sessionsContainer" class="row g-4"></div>
+
+  </div>
+
+  <!-- Voettekst -->
+  <footer class="footer bg-dark text-white-50 py-4 mt-auto border-top border-secondary">
+    <div class="container">
+      <div class="row align-items-center g-3">
+        <div class="col-md-6">
+          <p class="mb-1 text-white fw-semibold">🥾 Dodentocht Teamtraining Planner</p>
+          <small>Ontwikkeld voor teamtrainingen en wandelaars. Werkt 100% online op GitHub Pages.</small>
+        </div>
+        <div class="col-md-6 text-md-end">
+          <span class="badge bg-secondary text-light me-2">
+            <i class="bi bi-shield-lock-fill me-1"></i> GDPR / AVG Veilig (SHA-256)
+          </span>
+          <small class="d-block mt-1">Wachtwoorden worden altijd versleuteld opgeslagen.</small>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ======================================================================== -->
+  <!-- MODALS                                                                   -->
+  <!-- ======================================================================== -->
+
+  <!-- Modal: Sessie Details & Intekenen -->
+  <div class="modal fade" id="sessionDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-forest text-white p-3 p-md-4">
+          <div>
+            <span id="detailBadge" class="badge bg-white text-forest px-3 py-1 rounded-pill fw-bold mb-1">Training</span>
+            <h4 id="detailTitle" class="modal-title fw-bold text-white mb-0"></h4>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-3 p-md-4">
+          <div class="row g-4">
+            <!-- Linker kolom: Fiche -->
+            <div class="col-lg-7">
+              <div class="p-2 bg-light rounded-3 mb-3 d-flex align-items-center justify-content-between">
+                <div>
+                  <small class="text-muted d-block">Aangemaakt door:</small>
+                  <strong id="detailCreator" class="text-dark"></strong>
+                </div>
+                <div id="detailEditControls"></div>
+              </div>
+
+              <div class="list-group list-group-flush mb-3">
+                <div class="list-group-item d-flex align-items-start px-0 py-2">
+                  <i class="bi bi-calendar3 text-forest fs-5 me-3"></i>
+                  <div>
+                    <strong class="d-block small text-muted">Datum</strong>
+                    <span id="detailDate" class="fw-semibold text-dark"></span>
+                  </div>
+                </div>
+                <div class="list-group-item d-flex align-items-start px-0 py-2">
+                  <i class="bi bi-clock text-forest fs-5 me-3"></i>
+                  <div>
+                    <strong class="d-block small text-muted">Starttijd</strong>
+                    <span id="detailTime" class="fw-semibold text-dark"></span>
+                  </div>
+                </div>
+                <div class="list-group-item d-flex align-items-start px-0 py-2">
+                  <i class="bi bi-geo-alt-fill text-danger fs-5 me-3"></i>
+                  <div class="flex-grow-1">
+                    <strong class="d-block small text-muted">Startlocatie</strong>
+                    <span id="detailLocation" class="fw-semibold text-dark d-block mb-1"></span>
+                    <a id="detailMapsLink" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary btn-sm py-0 px-2 small">
+                      <i class="bi bi-map me-1"></i> Google Maps
+                    </a>
+                  </div>
+                </div>
+                <div class="list-group-item d-flex align-items-start px-0 py-2">
+                  <i class="bi bi-signpost-split text-primary fs-5 me-3"></i>
+                  <div>
+                    <strong class="d-block small text-muted">Afstand</strong>
+                    <span id="detailDistance" class="fw-semibold text-primary"></span>
+                  </div>
+                </div>
+                <div class="list-group-item d-flex align-items-start px-0 py-2">
+                  <i class="bi bi-speedometer2 text-warning fs-5 me-3"></i>
+                  <div>
+                    <strong class="d-block small text-muted">Streeftempo</strong>
+                    <span id="detailPace" class="fw-semibold text-dark"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Beschrijving -->
+              <h6 class="fw-bold text-forest mb-1 small text-uppercase">Toelichting / Route</h6>
+              <p id="detailDescription" class="small text-muted bg-light p-3 rounded-3" style="white-space: pre-line;"></p>
+
+              <!-- Route Link -->
+              <div id="detailRouteContainer" class="mb-3"></div>
+
+              <!-- Deel op WhatsApp -->
+              <div class="pt-2 border-top">
+                <a id="detailShareWhatsApp" href="#" target="_blank" class="btn btn-whatsapp btn-sm w-100">
+                  <i class="bi bi-whatsapp me-1"></i> Deel deze sessie op WhatsApp
+                </a>
+              </div>
+            </div>
+
+            <!-- Rechter kolom: Intekenen & Deelnemers -->
+            <div class="col-lg-5">
+              <div class="card bg-light border-0 rounded-3 p-3 mb-3">
+                <h6 class="fw-bold text-forest mb-3">
+                  <i class="bi bi-pencil-fill me-1"></i> Jouw Intekening
+                </h6>
+                <div id="detailRsvpContainer"></div>
+              </div>
+
+              <div class="card border rounded-3 p-3">
+                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                  <h6 class="fw-bold mb-0 text-dark">Aanwezigen</h6>
+                  <span id="detailAttendeesCount" class="badge bg-success-subtle text-success"></span>
+                </div>
+                <div id="detailAttendeesContainer" style="max-height: 250px; overflow-y: auto;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Sessie Aanmaken & Bewerken -->
+  <div class="modal fade" id="sessionFormModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-forest text-white p-3 p-md-4">
+          <h4 id="sessionFormModalTitle" class="modal-title fw-bold">Nieuwe Trainingssessie Plannen</h4>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <form id="sessionForm" onsubmit="handleSessionFormSubmit(event)">
+          <input type="hidden" id="formSessionId" value="">
+          <div class="modal-body p-3 p-md-4">
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold small text-uppercase">Type Evenement <span class="text-danger">*</span></label>
+              <select id="formSessionType" class="form-select" required>
+                <option value="training">🏃 Trainingssessie (Oefentocht / Duurmars)</option>
+                <option value="event">🏆 Uiteindelijk Sportevent (100km Dodentocht)</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label for="formTitle" class="form-label fw-bold small text-uppercase">Titel van de sessie <span class="text-danger">*</span></label>
+              <input type="text" id="formTitle" class="form-control" placeholder="Bv. Boswandeling Buggenhoutbos 25km" required>
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label for="formDate" class="form-label fw-bold small text-uppercase">Datum <span class="text-danger">*</span></label>
+                <input type="date" id="formDate" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label for="formStartTime" class="form-label fw-bold small text-uppercase">Starttijd <span class="text-danger">*</span></label>
+                <input type="time" id="formStartTime" class="form-control" required>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="formLocation" class="form-label fw-bold small text-uppercase">Startlocatie / Ontmoetingsplek <span class="text-danger">*</span></label>
+              <input type="text" id="formLocation" class="form-control" placeholder="Bv. Kerkplein Bornem of Station Puurs parking" required>
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label for="formDistance" class="form-label fw-bold small text-uppercase">Afstand in km (indien aangegeven)</label>
+                <div class="input-group">
+                  <input type="number" step="0.1" min="0" id="formDistance" class="form-control" placeholder="Bv. 30 of 42.5 (optioneel)">
+                  <span class="input-group-text">km</span>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label for="formPace" class="form-label fw-bold small text-uppercase">Streeftempo (optioneel)</label>
+                <input type="text" id="formPace" class="form-control" placeholder="Bv. 5.5 tot 6.0 km/u">
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="formRouteUrl" class="form-label fw-bold small text-uppercase">Link naar route / GPX / Komoot (optioneel)</label>
+              <input type="url" id="formRouteUrl" class="form-control" placeholder="https://komoot.com/... of https://strava.com/...">
+            </div>
+
+            <div class="mb-3">
+              <label for="formDescription" class="form-label fw-bold small text-uppercase">Extra toelichting / benodigdheden (optioneel)</label>
+              <textarea id="formDescription" class="form-control" rows="3" placeholder="Bevoorrading, kledij, carpooling afspraken..."></textarea>
+            </div>
+
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuleren</button>
+            <button type="submit" class="btn btn-forest px-4 fw-bold">Sessie Opslaan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Inloggen & Registreren (Direct actief) -->
+  <div class="modal fade" id="authModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-0 pb-0">
+          <ul class="nav nav-tabs border-0 w-100" id="authTabs" role="tablist">
+            <li class="nav-item flex-fill text-center">
+              <button class="nav-link active fw-bold text-forest w-100" id="authLoginTab" data-bs-toggle="tab" data-bs-target="#loginPane" type="button">Inloggen</button>
+            </li>
+            <li class="nav-item flex-fill text-center">
+              <button class="nav-link text-muted w-100" id="authRegisterTab" data-bs-toggle="tab" data-bs-target="#registerPane" type="button">Nieuw Account</button>
+            </li>
+          </ul>
+          <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4 pt-3">
+          <div class="tab-content">
+            <!-- Login pane -->
+            <div class="tab-pane fade show active" id="loginPane">
+              <p class="small text-muted mb-3">Meld je aan om onder jouw eigen naam in te tekenen op trainingen.</p>
+              <form onsubmit="handleLogin(event)">
+                <div class="mb-3">
+                  <label class="form-label fw-bold small">E-mailadres</label>
+                  <input type="email" id="loginEmail" class="form-control" placeholder="naam@voorbeeld.be" required autofocus>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold small">Wachtwoord</label>
+                  <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-forest w-100 py-2 fw-bold mb-2">Inloggen</button>
+              </form>
+            </div>
+
+            <!-- Register pane -->
+            <div class="tab-pane fade" id="registerPane">
+              <p class="small text-muted mb-3">Direct account aanmaken. <strong>Geen e-mailactivatie nodig</strong>; je bent meteen ingelogd!</p>
+              <form onsubmit="handleRegister(event)">
+                <div class="mb-3">
+                  <label class="form-label fw-bold small">Voor- en Achternaam <span class="text-danger">*</span></label>
+                  <input type="text" id="regName" class="form-control" placeholder="Bv. Jan De Smet" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold small">E-mailadres <span class="text-danger">*</span></label>
+                  <input type="email" id="regEmail" class="form-control" placeholder="naam@voorbeeld.be" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold small">Telefoonnummer (optioneel)</label>
+                  <input type="tel" id="regPhone" class="form-control" placeholder="Bv. 0470 12 34 56">
+                </div>
+                <div class="row g-2 mb-3">
+                  <div class="col-6">
+                    <label class="form-label fw-bold small">Wachtwoord <span class="text-danger">*</span></label>
+                    <input type="password" id="regPassword" class="form-control" placeholder="Min. 6 tekens" required minlength="6">
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label fw-bold small">Bevestig <span class="text-danger">*</span></label>
+                    <input type="password" id="regPasswordConfirm" class="form-control" placeholder="Herhaal" required minlength="6">
+                  </div>
+                </div>
+                <button type="submit" class="btn btn-forest w-100 py-2 fw-bold mb-2">Account Registreren & Inloggen</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="alert alert-light border small text-muted p-2 mt-3 mb-0">
+            <i class="bi bi-shield-check text-success me-1"></i>
+            <strong>GDPR Veilig:</strong> Wachtwoorden worden via SHA-256 Web Crypto gehasht. Niemand kan jouw wachtwoord inzien.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Rollenbeheer (Exclusief voor Kenny / Developer) -->
+  <div class="modal fade" id="devRolesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-warning text-dark p-3 p-md-4">
+          <div>
+            <span class="badge bg-dark text-white px-2 py-1 mb-1">Developer Exclusief</span>
+            <h4 class="modal-title fw-bold mb-0">Gebruikers- en Rollenbeheer</h4>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-3 p-md-4">
+          <p class="small text-muted mb-3">
+            Als ontwikkelaar kun je hier gebruikersrollen toewijzen en met 1 klik een nieuw wachtwoord instellen voor deelnemers die het vergeten zijn.
+          </p>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th class="ps-3">Gebruiker</th>
+                  <th>Huidige Rol</th>
+                  <th class="text-end pe-3">Rol / Wachtwoord Reset</th>
+                </tr>
+              </thead>
+              <tbody id="devUsersTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Mijn Profiel & GDPR -->
+  <div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-forest text-white p-3">
+          <h5 class="modal-title fw-bold">Mijn Profiel & Privacy</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <form onsubmit="handleProfileUpdate(event)" class="mb-4">
+            <h6 class="fw-bold text-forest mb-3">Profielgegevens</h6>
+            <div class="mb-2">
+              <label class="form-label small text-muted">Naam</label>
+              <input type="text" id="profileName" class="form-control" required>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small text-muted">E-mailadres</label>
+              <input type="email" id="profileEmail" class="form-control bg-light" readonly disabled>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small text-muted">Telefoon</label>
+              <input type="tel" id="profilePhone" class="form-control" placeholder="0470...">
+            </div>
+            <div class="mb-3">
+              <label class="form-label small text-muted">Noodcontact (ICE)</label>
+              <input type="text" id="profileEmergency" class="form-control" placeholder="Partner / Familie nummer">
+            </div>
+            <button type="submit" class="btn btn-forest btn-sm w-100 fw-bold">Profiel Opslaan</button>
+          </form>
+
+          <hr>
+
+          <form onsubmit="handlePasswordChange(event)" class="mb-3">
+            <h6 class="fw-bold text-forest mb-2">Wachtwoord Wijzigen</h6>
+            <div class="mb-2">
+              <input type="password" id="profOldPass" class="form-control form-control-sm" placeholder="Huidig wachtwoord" required>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <input type="password" id="profNewPass" class="form-control form-control-sm" placeholder="Nieuw wachtwoord" required minlength="6">
+              </div>
+              <div class="col-6">
+                <input type="password" id="profNewPassConf" class="form-control form-control-sm" placeholder="Herhaal nieuw" required minlength="6">
+              </div>
+            </div>
+            <button type="submit" class="btn btn-outline-forest btn-sm w-100 fw-semibold">Wachtwoord Aanpassen</button>
+          </form>
+
+          <div class="pt-2 border-top">
+            <button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="exportGdprJson()">
+              <i class="bi bi-download me-1"></i> Download Mijn Gegevens (GDPR JSON)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Cloud Synchronisatie & Backups -->
+  <div class="modal fade" id="syncModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-forest text-white p-3">
+          <h5 class="modal-title fw-bold">Cloud Sync & Database Backups</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <h6 class="fw-bold text-forest mb-2">Realtime Cloud Synchronisatie</h6>
+          <p class="small text-muted mb-3">
+            Om alle trainingen en intekeningen live te synchroniseren tussen alle smartphones via GitHub Pages, kun je hier een gratis Firebase Realtime Database URL of JSON endpoint koppelen.
+          </p>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Firebase Realtime Database URL</label>
+            <input type="url" id="syncUrlInput" class="form-control" placeholder="https://jouw-project-default-rtdb.europe-west1.firebasedatabase.app">
+            <small class="text-muted">Laat leeg voor zuiver lokale offline opslag op dit apparaat.</small>
+          </div>
+          <button type="button" class="btn btn-forest btn-sm w-100 fw-bold mb-3" onclick="saveSyncUrl()">
+            Sync Instelling Opslaan
+          </button>
+
+          <!-- Snelle Uitleg Accordion -->
+          <div class="card bg-light border-0 rounded-3 p-3 mb-4">
+            <h6 class="fw-bold small text-forest mb-2">
+              <i class="bi bi-question-circle me-1"></i> Hoe maak je deze gratis link in 2 minuten?
+            </h6>
+            <ol class="small text-muted ps-3 mb-0" style="font-size: 0.82rem; line-height: 1.5;">
+              <li>Ga naar <strong><a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer">console.firebase.google.com</a></strong> (gratis inloggen met je Google account).</li>
+              <li>Klik op <strong>"Project toevoegen"</strong> &rarr; geef het de naam <code>dodentocht-team</code> &rarr; klik op Doorgaan/Maken.</li>
+              <li>Kies in het linkermenu onder <em>Build / Maken</em> voor <strong>"Realtime Database"</strong>.</li>
+              <li>Klik op <strong>"Database maken"</strong>, kies locatie <em>België / Europa (europe-west1)</em>.</li>
+              <li>Kies bij Beveiligingsregels voor <strong>"Starten in testmodus"</strong> &rarr; klik op <em>Inschakelen</em>.</li>
+              <li>Kopieer de URL die bovenaan verschijnt (begint met <code>https://...firebasedatabase.app</code>) en plak hem hierboven!</li>
+            </ol>
+          </div>
+
+          <hr>
+
+          <h6 class="fw-bold text-forest mb-2">Database Backup & Herstel</h6>
+          <p class="small text-muted mb-2">Net zoals bij de Hardware Selector kun je de volledige database downloaden of inladen.</p>
+          <div class="d-flex gap-2 mb-3">
+            <button type="button" class="btn btn-outline-primary btn-sm flex-fill fw-semibold" onclick="downloadFullBackup()">
+              <i class="bi bi-download me-1"></i> Download Backup (.json)
+            </button>
+            <label class="btn btn-outline-secondary btn-sm flex-fill fw-semibold mb-0">
+              <i class="bi bi-upload me-1"></i> Herstel Backup
+              <input type="file" accept=".json" onchange="restoreBackupFromFile(event)" style="display: none;">
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

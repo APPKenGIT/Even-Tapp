@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Account Aanmaken | Dodentocht Teamtraining{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-7 col-lg-6">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4 p-md-5">
+                    <div class="text-center mb-4">
+                        <div class="auth-icon-circle bg-forest text-white mx-auto mb-3">
+                            <i class="bi bi-person-plus-fill fs-2"></i>
+                        </div>
+                        <h3 class="fw-bold">Nieuw Account Aanmaken</h3>
+                        <p class="text-muted small">Meld je aan zodat je officiële aanwezigheid geregistreerd kan worden onder jouw naam</p>
+                    </div>
+
+                    <form method="POST" action="{{ url_for('register') }}">
+                        <!-- Volledige naam -->
+                        <div class="mb-3">
+                            <label for="name" class="form-label fw-bold">Voor- en Achternaam <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-person"></i></span>
+                                <input type="text" class="form-control" id="name" name="name" placeholder="Bv. Jan De Smet" value="{{ name or '' }}" required autofocus>
+                            </div>
+                            <small class="text-muted">Deze naam is zichtbaar bij jouw aanmeldingen op trainingen.</small>
+                        </div>
+
+                        <!-- E-mailadres -->
+                        <div class="mb-3">
+                            <label for="email" class="form-label fw-bold">E-mailadres <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                                <input type="email" class="form-control" id="email" name="email" placeholder="naam@voorbeeld.be" value="{{ email or '' }}" required>
+                            </div>
+                            <small class="text-muted">Wordt gebruikt om in te loggen. Blijft privé en is niet zichtbaar voor andere deelnemers.</small>
+                        </div>
+
+                        <!-- Telefoonnummer (optioneel) -->
+                        <div class="mb-3">
+                            <label for="phone" class="form-label fw-bold">Telefoonnummer <span class="text-muted fw-normal">(optioneel, voor noodgevallen/carpool)</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-telephone"></i></span>
+                                <input type="tel" class="form-control" id="phone" name="phone" placeholder="Bv. 0470 12 34 56" value="{{ phone or '' }}">
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <!-- Wachtwoord -->
+                            <div class="col-md-6">
+                                <label for="password" class="form-label fw-bold">Wachtwoord <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-key"></i></span>
+                                    <input type="password" class="form-control" id="password" name="password" placeholder="Min. 6 tekens" required>
+                                </div>
+                            </div>
+
+                            <!-- Bevestig Wachtwoord -->
+                            <div class="col-md-6">
+                                <label for="password_confirm" class="form-label fw-bold">Bevestig Wachtwoord <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-check2-circle"></i></span>
+                                    <input type="password" class="form-control" id="password_confirm" name="password_confirm" placeholder="Herhaal" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- GDPR Box -->
+                        <div class="card bg-light border-0 rounded-3 p-3 mb-4">
+                            <div class="d-flex">
+                                <i class="bi bi-shield-lock-fill text-forest fs-4 me-2"></i>
+                                <div>
+                                    <strong class="d-block text-forest small">GDPR & Privacy Garantie:</strong>
+                                    <p class="small text-muted mb-0">
+                                        Conform de Europese privacywetgeving (AVG/GDPR) wordt jouw wachtwoord via een geavanceerde cryptografische hashfunctie (PBKDF2 met salt) versleuteld.
+                                        <strong>Het wachtwoord is onomkeerbaar en NOOIT raadpleegbaar door ontwikkelaars of administrators.</strong>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-forest w-100 py-2 fw-bold shadow-sm mb-3">
+                            <i class="bi bi-person-check-fill me-1"></i> Account Registreren
+                        </button>
+
+                        <div class="text-center">
+                            <span class="text-muted small">Heb je al een account?</span>
+                            <a href="{{ url_for('login') }}" class="fw-bold text-forest text-decoration-none ms-1">Hier inloggen</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

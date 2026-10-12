@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block title %}Trainingsplanning | Dodentocht Team{% endblock %}
+
+{% block content %}
+<div class="hero-section text-white py-5 mb-4">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-bold mb-2">
+                    <i class="bi bi-compass me-1"></i> Road to 100KM
+                </span>
+                <h1 class="display-5 fw-extrabold mb-2">Teamtrainingen & Sportevents</h1>
+                <p class="lead text-light mb-4">
+                    Samen trainen, grenzen verleggen en aftellen naar het uiteindelijke sportevent. Bekijk de planning, teken in op sessies of stel zelf een training voor!
+                </p>
+                <div class="d-flex flex-wrap gap-2">
+                    {% if g.user %}
+                        <a href="{{ url_for('new_session') }}" class="btn btn-accent btn-lg text-dark fw-bold shadow-sm">
+                            <i class="bi bi-plus-lg me-1"></i> Nieuwe Sessie Plannen
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('register') }}" class="btn btn-accent btn-lg text-dark fw-bold shadow-sm">
+                            <i class="bi bi-person-plus-fill me-1"></i> Maak Account & Teken In
+                        </a>
+                        <a href="{{ url_for('login') }}" class="btn btn-outline-light btn-lg">
+                            Inloggen
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-lg-4 mt-4 mt-lg-0">
+                <div class="card bg-white text-dark shadow border-0 rounded-4 p-3">
+                    <h6 class="text-muted text-uppercase fw-bold mb-3" style="font-size: 0.8rem;">
+                        <i class="bi bi-graph-up-arrow me-1 text-success"></i> Team Statistieken
+                    </h6>
+                    <div class="row g-2 text-center">
+                        <div class="col-6">
+                            <div class="p-2 bg-light rounded-3">
+                                <div class="fs-3 fw-bold text-forest">{{ stats.trainings_count }}</div>
+                                <small class="text-muted">Trainingen</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-2 bg-light rounded-3">
+                                <div class="fs-3 fw-bold text-warning">{{ stats.events_count }}</div>
+                                <small class="text-muted">Hoofdevents</small>
+                            </div>
+                        </div>
+                        <div class="col-12 mt-2">
+                            <div class="p-2 bg-light rounded-3">
+                                <div class="fs-4 fw-bold text-primary">{{ stats.total_km }} km</div>
+                                <small class="text-muted">Totaal geplande afstand</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container mb-5">
+    <!-- Filter tabs -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+        <div class="btn-group shadow-sm" role="group" aria-label="Sessie filters">
+            <a href="{{ url_for('index', type='all') }}" class="btn {% if filter_type == 'all' %}btn-forest text-white{% else %}btn-outline-secondary bg-white{% endif %} fw-semibold">
+                Alle ({{ stats.total_sessions }})
+            </a>
+            <a href="{{ url_for('index', type='training') }}" class="btn {% if filter_type == 'training' %}btn-forest text-white{% else %}btn-outline-secondary bg-white{% endif %} fw-semibold">
+                🏃 Trainingssessies ({{ stats.trainings_count }})
+            </a>
+            <a href="{{ url_for('index', type='event') }}" class="btn {% if filter_type == 'event' %}btn-forest text-white{% else %}btn-outline-secondary bg-white{% endif %} fw-semibold">
+                🏆 Hoofdevents ({{ stats.events_count }})
+            </a>
+        </div>
+
+        {% if g.user %}
+        <div>
+            <a href="{{ url_for('new_session') }}" class="btn btn-outline-forest fw-semibold">
+                <i class="bi bi-calendar-plus me-1"></i> Sessie toevoegen
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Lijst van sessies -->
+    {% if sessions %}
+        <div class="row g-4">
+            {% for s in sessions %}
+                <div class="col-lg-6">
+                    <div class="card h-100 shadow-sm border-0 session-card position-relative {% if s.session_type == 'event' %}border-start border-warning border-5{% else %}border-start border-success border-5{% endif %}">
+                        <div class="card-body p-4 d-flex flex-column">
+                            
+                            <!-- Bovenbalk: Type + Mijn status -->
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    {% if s.session_type == 'event' %}
+                                        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-bold">
+                                            🏆 Uiteindelijk Event
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill fw-bold border border-success-subtle">
+                                            🏃 Training
+                                        </span>
+                                    {% endif %}
+                                </div>
+
+                                {% if g.user and s.id in my_registrations %}
+                                    {% if my_registrations[s.id] == 'present' %}
+                                        <span class="badge bg-success text-white px-3 py-2 rounded-pill fw-semibold">
+                                            <i class="bi bi-check-circle-fill me-1"></i> Je bent ingetekend
+                                        </span>
+                                    {% elif my_registrations[s.id] == 'maybe' %}
+                                        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-semibold">
+                                            <i class="bi bi-question-circle-fill me-1"></i> Misschien
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary text-white px-3 py-2 rounded-pill">
+                                            Afwezig
+                                        </span>
+                                    {% endif %}
+                                {% elif g.user %}
+                                    <span class="badge bg-light text-muted border px-2 py-1">
+                                        Nog niet gereageerd
+                                    </span>
+                                {% endif %}
+                            </div>
+
+                            <!-- Titel -->
+                            <h4 class="card-title fw-bold mb-3 text-dark">
+                                <a href="{{ url_for('session_detail', session_id=s.id) }}" class="text-decoration-none text-dark hover-forest">
+                                    {{ s.title }}
+                                </a>
+                            </h4>
+
+                            <!-- Parameters: Datum, Tijd, Locatie, Afstand -->
+                            <div class="session-meta-grid mb-3">
+                                <div class="meta-item">
+                                    <i class="bi bi-calendar3 text-forest me-2"></i>
+                                    <div>
+                                        <strong>Datum:</strong>
+                                        <span class="d-block text-secondary">{{ s.date | format_date }}</span>
+                                    </div>
+                                </div>
+                                <div class="meta-item">
+                                    <i class="bi bi-clock text-forest me-2"></i>
+                                    <div>
+                                        <strong>Starttijd:</strong>
+                                        <span class="d-block text-secondary">{{ s.start_time }} u</span>
+                                    </div>
+                                </div>
+                                <div class="meta-item">
+                                    <i class="bi bi-geo-alt-fill text-danger me-2"></i>
+                                    <div>
+                                        <strong>Startlocatie:</strong>
+                                        <span class="d-block text-secondary text-truncate" style="max-width: 200px;" title="{{ s.location }}">{{ s.location }}</span>
+                                    </div>
+                                </div>
+                                <div class="meta-item">
+                                    <i class="bi bi-signpost-split text-primary me-2"></i>
+                                    <div>
+                                        <strong>Afstand:</strong>
+                                        <span class="d-block text-secondary">
+                                            {% if s.distance_km %}
+                                                <span class="badge bg-primary-subtle text-primary fw-bold">{{ s.distance_km }} km</span>
+                                            {% else %}
+                                                <span class="text-muted fst-italic">Niet opgegeven</span>
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Wie heeft aangemaakt -->
+                            <div class="creator-badge p-2 bg-light rounded-3 mb-3 d-flex align-items-center">
+                                <i class="bi bi-person-fill-gear text-muted me-2"></i>
+                                <small class="text-muted">
+                                    Aangemaakt door: <strong class="text-dark">{{ s.creator_name }}</strong>
+                                </small>
+                            </div>
+
+                            <!-- Aanwezige mensen / Intekeningen count -->
+                            <div class="d-flex align-items-center justify-content-between pt-2 border-top mt-auto">
+                                <div class="d-flex align-items-center">
+                                    <div class="participant-avatars-icon bg-forest-subtle text-forest rounded-circle me-2 p-2">
+                                        <i class="bi bi-people-fill"></i>
+                                    </div>
+                                    <div>
+                                        <span class="fw-bold fs-6 text-dark">{{ s.present_count }}</span>
+                                        <small class="text-muted">aanwezigen</small>
+                                        {% if s.maybe_count > 0 %}
+                                            <small class="text-warning fw-semibold">({{ s.maybe_count }} misschien)</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="d-flex gap-2">
+                                    <a href="{{ url_for('session_detail', session_id=s.id) }}" class="btn btn-outline-forest btn-sm px-3 fw-semibold">
+                                        Details & Intekenen <i class="bi bi-arrow-right ms-1"></i>
+                                    </a>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card shadow-sm border-0 text-center py-5">
+            <div class="card-body">
+                <i class="bi bi-calendar-x fs-1 text-muted mb-3 d-block"></i>
+                <h4 class="fw-bold">Geen sessies gevonden</h4>
+                <p class="text-muted">Er zijn momenteel geen trainingssessies gepland binnen deze categorie.</p>
+                {% if g.user %}
+                    <a href="{{ url_for('new_session') }}" class="btn btn-forest fw-semibold">
+                        <i class="bi bi-plus-lg me-1"></i> Maak de eerste sessie aan
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('register') }}" class="btn btn-accent fw-bold text-dark">
+                        Meld je aan om sessies in te plannen
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
