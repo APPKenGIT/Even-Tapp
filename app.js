@@ -77,8 +77,6 @@ function renderUserAvatar(userOrName, photoUrl = null, size = 32, extraClass = '
 // --- INITIAL DATA SEEDING (bij eerste opstart) ---
 async function getInitialUsers() {
   const devPass = await hashPassword('KennyEvenTapp2026!');
-  const adminPass = await hashPassword('Admin2026!');
-  const memberPass = await hashPassword('Lid2026!');
 
   return [
     {
@@ -87,30 +85,6 @@ async function getInitialUsers() {
       email: 'kennydm94@gmail.com',
       passwordHash: devPass,
       role: 'developer',
-      status: 'approved',
-      phone: '',
-      emergencyContact: '',
-      photoUrl: null,
-      createdAt: '2026-10-09'
-    },
-    {
-      id: 'usr_admin_1',
-      name: 'Koen Demeester',
-      email: 'koen@eventapp.be',
-      passwordHash: adminPass,
-      role: 'admin',
-      status: 'approved',
-      phone: '0470 12 34 56',
-      emergencyContact: 'Familie Demeester',
-      photoUrl: null,
-      createdAt: '2026-10-09'
-    },
-    {
-      id: 'usr_user_1',
-      name: 'Sarah De Smet',
-      email: 'sarah@eventapp.be',
-      passwordHash: memberPass,
-      role: 'user',
       status: 'approved',
       phone: '',
       emergencyContact: '',
@@ -130,8 +104,10 @@ async function loadState() {
   if (storedUsers) {
     try {
       state.users = JSON.parse(storedUsers);
+      // Filter alle oude dummy accounts weg
+      state.users = state.users.filter(u => u.email !== 'koen@eventapp.be' && u.email !== 'sarah@eventapp.be');
       state.users.forEach(u => {
-        if (!u.status) u.status = 'approved';
+        if (!u.status) u.status = 'pending';
         if (u.email === 'kennydm94@gmail.com') {
           u.role = 'developer';
           u.status = 'approved';
@@ -142,7 +118,8 @@ async function loadState() {
     }
   } else {
     state.users = await getInitialUsers();
-    saveUsers();
+    // Geen push naar de cloud vooraleer pullCloudData() gedraaid heeft
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(state.users));
   }
 
   // GEEN VOORBEELD EVENTS! Firebase is de single source of truth.
@@ -214,19 +191,48 @@ async function pullCloudData() {
     if (res.ok) {
       const data = await res.json();
       if (data && typeof data === 'object') {
-        // Laad uitsluitend wat in de Firebase database staat (geen injectie van fake demo-events!)
+        // Laad uitsluitend wat in de Firebase database staat
         state.sessions = Array.isArray(data.sessions) ? data.sessions : [];
         state.registrations = Array.isArray(data.registrations) ? data.registrations : [];
-        if (Array.isArray(data.users) && data.users.length > 0) {
-          state.users = data.users;
-          state.users.forEach(u => {
-            if (!u.status) u.status = 'approved';
+
+        if (Array.isArray(data.users)) {
+          // Filter eventuele dummy testgebruikers weg
+          let validUsers = data.users.filter(u => u.email !== 'koen@eventapp.be' && u.email !== 'sarah@eventapp.be');
+
+          // Garandeer dat ontwikkelaar Kenny er altijd in staat
+          let devUser = validUsers.find(u => u.email === 'kennydm94@gmail.com');
+          if (!devUser) {
+            const devPass = await hashPassword('KennyEvenTapp2026!');
+            devUser = {
+              id: 'usr_dev_1',
+              name: 'Kenny De Meester',
+              email: 'kennydm94@gmail.com',
+              passwordHash: devPass,
+              role: 'developer',
+              status: 'approved',
+              phone: '',
+              emergencyContact: '',
+              photoUrl: null,
+              createdAt: '2026-10-09'
+            };
+            validUsers.unshift(devUser);
+          } else {
+            devUser.role = 'developer';
+            devUser.status = 'approved';
+          }
+
+          // Behoud exact de aanvraagstatus: 'pending', 'approved', 'rejected'
+          validUsers.forEach(u => {
+            if (!u.status) u.status = 'pending';
             if (u.email === 'kennydm94@gmail.com') {
               u.role = 'developer';
               u.status = 'approved';
             }
           });
+
+          state.users = validUsers;
         }
+
         localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(state.sessions));
         localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(state.registrations));
         localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(state.users));
@@ -237,6 +243,13 @@ async function pullCloudData() {
         }
 
         renderApp();
+
+        // Als developer Rollenbeheer modal open staat, ververs direct de lijst met aanvragen
+        const devRolesModalEl = document.getElementById('devRolesModal');
+        if (devRolesModalEl && devRolesModalEl.classList.contains('show')) {
+          renderPendingRegistrationsSection();
+          renderDevUsersTable();
+        }
       } else if (data === null) {
         // Database is leeg: bewaar huidige sessies/users
         await pushCloudData();
@@ -594,13 +607,19 @@ async function handleLogin(e) {
     user.status = 'approved';
   }
 
+  // Als de gebruiker lokaal niet gevonden wordt of nog pending staat, vraag eerst live data op
+  if ((!user || user.status === 'pending') && state.syncUrl) {
+    await pullCloudData();
+    user = state.users.find(u => u.email.toLowerCase() === email) || user;
+  }
+
   if (!user) {
     showToast('Geen account gevonden met dit e-mailadres. Vraag gerust een nieuw account aan!', 'danger');
     return;
   }
 
   // Goedkeuring controleren
-  const userStatus = user.status || 'approved';
+  const userStatus = user.status || 'pending';
   if (userStatus === 'pending') {
     showToast('⏳ Je account staat nog in afwachting van goedkeuring door de beheerder (Kenny).', 'warning');
     return;
@@ -659,6 +678,12 @@ async function handleRegister(e) {
     showToast('Wachtwoorden komen niet overeen.', 'danger');
     return;
   }
+
+  // Haal eerst de meest recente cloud-data op zodat we nooit andere gebruikers overschrijven
+  if (state.syncUrl) {
+    await pullCloudData();
+  }
+
   if (state.users.some(u => u.email.toLowerCase() === email)) {
     showToast('Er bestaat al een account met dit e-mailadres.', 'danger');
     return;
@@ -683,6 +708,7 @@ async function handleRegister(e) {
 
   state.users.push(newUser);
   saveUsers();
+  await pushCloudData();
 
   if (isDev) {
     state.currentUser = newUser;
@@ -1161,29 +1187,31 @@ function renderPendingRegistrationsSection() {
   `;
 }
 
-function approveUser(userId) {
+async function approveUser(userId) {
   const u = state.users.find(user => user.id === userId);
   if (!u) return;
   u.status = 'approved';
   saveUsers();
+  await pushCloudData();
   showToast(`Account van ${u.name} is goedgekeurd! Deze gebruiker kan nu inloggen.`, 'success');
   renderPendingRegistrationsSection();
   renderDevUsersTable();
   renderNavbar();
 }
 
-function rejectUser(userId) {
+async function rejectUser(userId) {
   const u = state.users.find(user => user.id === userId);
   if (!u) return;
   u.status = 'rejected';
   saveUsers();
+  await pushCloudData();
   showToast(`Registratie van ${u.name} is afgekeurd.`, 'info');
   renderPendingRegistrationsSection();
   renderDevUsersTable();
   renderNavbar();
 }
 
-function deleteUser(userId) {
+async function deleteUser(userId) {
   const u = state.users.find(user => user.id === userId);
   if (!u) return;
   if (u.role === 'developer' || (state.currentUser && state.currentUser.id === u.id)) {
@@ -1202,6 +1230,7 @@ function deleteUser(userId) {
 
   saveUsers();
   saveRegistrations();
+  await pushCloudData();
   showToast(`Account van ${u.name} is definitief verwijderd.`, 'info');
   renderPendingRegistrationsSection();
   renderDevUsersTable();
