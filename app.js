@@ -1541,10 +1541,42 @@ function exportDevAnalyticsCsv() {
 }
 
 // --- TOESTEL-NOTIFICATIES (BEHEER & VERZENDING) ---
+function getDeviceNotificationCapabilities() {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isStandalone = (window.navigator.standalone === true) || window.matchMedia('(display-mode: standalone)').matches;
+  const hasNotificationAPI = ('Notification' in window);
+
+  return {
+    isIOS,
+    isStandalone,
+    hasNotificationAPI,
+    canNotify: hasNotificationAPI && (!isIOS || isStandalone),
+    permission: hasNotificationAPI ? Notification.permission : 'unsupported'
+  };
+}
+
 function isNotificationsEnabledOnDevice() {
-  if (!('Notification' in window)) return false;
+  const cap = getDeviceNotificationCapabilities();
+  if (!cap.hasNotificationAPI) return false;
   const userPref = localStorage.getItem('eventapp_notifications_enabled');
   return (userPref === 'true' && Notification.permission === 'granted');
+}
+
+function requestPermissionCompat() {
+  return new Promise((resolve) => {
+    if (!('Notification' in window)) return resolve('unsupported');
+    try {
+      const p = Notification.requestPermission((result) => {
+        resolve(result);
+      });
+      if (p && typeof p.then === 'function') {
+        p.then(resolve).catch(() => resolve(Notification.permission));
+      }
+    } catch (err) {
+      console.warn("requestPermission error:", err);
+      resolve(Notification.permission || 'denied');
+    }
+  });
 }
 
 function updateProfileNotificationUI() {
@@ -1553,10 +1585,30 @@ function updateProfileNotificationUI() {
   const testBtn = document.getElementById('btnTestNotification');
   if (!toggle || !statusText) return;
 
-  if (!('Notification' in window)) {
+  const cap = getDeviceNotificationCapabilities();
+
+  // Scenario 1: iOS apparaat dat nog niet via 'Zet op beginscherm' is geïnstalleerd
+  if (cap.isIOS && !cap.isStandalone) {
+    toggle.checked = false;
+    toggle.disabled = false;
+    statusText.innerHTML = `
+      <div class="alert alert-warning p-2 small mb-0 rounded-3">
+        <strong><i class="bi bi-apple me-1"></i> iPhone / iPad vereiste:</strong><br>
+        Apple staat meldingen alleen toe als Even'Tapp op je beginscherm staat:<br>
+        1. Tik in Safari onderaan op het <strong>Deel-icoon</strong> (<i class="bi bi-box-arrow-up"></i>).<br>
+        2. Kies <strong>"Zet op beginscherm"</strong>.<br>
+        3. Open Even'Tapp vanaf je startscherm en zet hier de meldingen aan.
+      </div>
+    `;
+    if (testBtn) testBtn.disabled = false;
+    return;
+  }
+
+  // Scenario 2: Geen Notification API ondersteund
+  if (!cap.hasNotificationAPI) {
     toggle.checked = false;
     toggle.disabled = true;
-    statusText.innerHTML = '<span class="text-warning"><i class="bi bi-info-circle me-1"></i> Meldingen worden niet ondersteund door deze browser/toestel (op iPhone vereist dit iOS 16.4+ via "Zet op beginscherm").</span>';
+    statusText.innerHTML = '<span class="text-warning small"><i class="bi bi-info-circle me-1"></i> Meldingen worden niet ondersteund door deze browser.</span>';
     if (testBtn) testBtn.disabled = true;
     return;
   }
@@ -1564,46 +1616,62 @@ function updateProfileNotificationUI() {
   const perm = Notification.permission;
   const enabled = localStorage.getItem('eventapp_notifications_enabled') === 'true';
 
-  if (perm === 'granted' && enabled) {
-    toggle.checked = true;
+  if (perm === 'granted') {
+    toggle.checked = enabled;
     toggle.disabled = false;
-    statusText.innerHTML = '<span class="text-success fw-semibold"><i class="bi bi-check-circle-fill me-1"></i> Ingeschakeld op dit toestel. Je ontvangt meldingen bij nieuwe activiteiten.</span>';
+    if (enabled) {
+      statusText.innerHTML = '<span class="text-success fw-semibold small d-block"><i class="bi bi-check-circle-fill me-1"></i> Actief op dit toestel! Je ontvangt meldingen bij nieuwe activiteiten.</span>';
+    } else {
+      statusText.innerHTML = '<span class="text-muted small d-block"><i class="bi bi-bell-slash me-1"></i> Toestemming is verleend, maar meldingen staan tijdelijk gepauzeerd op dit toestel.</span>';
+    }
     if (testBtn) testBtn.disabled = false;
   } else if (perm === 'denied') {
     toggle.checked = false;
     toggle.disabled = false;
-    statusText.innerHTML = '<span class="text-danger fw-semibold"><i class="bi bi-exclamation-triangle-fill me-1"></i> Meldingen zijn geblokkeerd in je browser- of toestelinstellingen. Schakel dit in bij je app-instellingen.</span>';
-    if (testBtn) testBtn.disabled = true;
+    statusText.innerHTML = `
+      <div class="alert alert-danger p-2 small mb-0 rounded-3">
+        <strong><i class="bi bi-shield-x me-1"></i> Meldingen geblokkeerd in browser:</strong><br>
+        Je browser heeft meldingen voor deze website geweigerd.<br>
+        • Tik linksboven op het <strong>slotje 🔒 of tune-knop</strong> naast de URL.<br>
+        • Zet <strong>Meldingen</strong> op <strong>Toestaan</strong> en ververs de pagina.
+      </div>
+    `;
+    if (testBtn) testBtn.disabled = false;
   } else {
+    // Permissie is 'default' (nog niet gevraagd)
     toggle.checked = false;
     toggle.disabled = false;
-    statusText.innerHTML = '<span class="text-muted"><i class="bi bi-bell-slash me-1"></i> Meldingen staan momenteel uit op dit toestel. Zet de schakelaar aan om in te schakelen.</span>';
+    statusText.innerHTML = '<span class="text-muted small d-block"><i class="bi bi-bell me-1"></i> Meldingen staan uit. Zet de schakelaar aan om toestemming te geven.</span>';
     if (testBtn) testBtn.disabled = false;
   }
 }
 
 async function handleNotificationToggle(checked) {
-  if (!('Notification' in window)) {
+  const cap = getDeviceNotificationCapabilities();
+
+  if (cap.isIOS && !cap.isStandalone) {
+    showToast('Op iPhone vereist Apple dat je de app toevoegt aan je beginscherm (Deel ➔ Zet op beginscherm).', 'warning');
+    updateProfileNotificationUI();
+    return;
+  }
+
+  if (!cap.hasNotificationAPI) {
     showToast('Meldingen worden niet ondersteund op dit toestel.', 'warning');
     updateProfileNotificationUI();
     return;
   }
 
   if (checked) {
-    try {
-      const perm = await Notification.requestPermission();
-      if (perm === 'granted') {
-        localStorage.setItem('eventapp_notifications_enabled', 'true');
-        showToast('Toestel-meldingen succesvol ingeschakeld!', 'success');
-        sendDeviceNotification("Even'Tapp", "🔔 Meldingen zijn actief op dit toestel!", true);
-      } else if (perm === 'denied') {
-        localStorage.setItem('eventapp_notifications_enabled', 'false');
-        showToast('Toestemming geweigerd. Schakel meldingen in via je toestelinstellingen.', 'warning');
-      } else {
-        localStorage.setItem('eventapp_notifications_enabled', 'false');
-      }
-    } catch (e) {
-      console.warn("Notification permission error:", e);
+    const perm = await requestPermissionCompat();
+    if (perm === 'granted') {
+      localStorage.setItem('eventapp_notifications_enabled', 'true');
+      showToast('Toestel-meldingen succesvol ingeschakeld!', 'success');
+      sendDeviceNotification("Even'Tapp", "🔔 Meldingen zijn actief op dit toestel!", true);
+    } else if (perm === 'denied') {
+      localStorage.setItem('eventapp_notifications_enabled', 'false');
+      showToast('Toestemming geweigerd. Schakel meldingen in via je browser- of toestelinstellingen.', 'warning');
+    } else {
+      localStorage.setItem('eventapp_notifications_enabled', 'false');
     }
   } else {
     localStorage.setItem('eventapp_notifications_enabled', 'false');
@@ -1613,27 +1681,42 @@ async function handleNotificationToggle(checked) {
   updateProfileNotificationUI();
 }
 
-function triggerTestNotification() {
-  if (!('Notification' in window)) {
-    showToast('Meldingen worden niet ondersteund op dit toestel.', 'warning');
+async function triggerTestNotification() {
+  const cap = getDeviceNotificationCapabilities();
+
+  // Laat telefoon altijd voelbaar trillen ter directe feedback
+  if ('vibrate' in navigator) {
+    try { navigator.vibrate([200, 100, 200]); } catch(e) {}
+  }
+
+  if (cap.isIOS && !cap.isStandalone) {
+    showToast('📱 Op iPhone: voeg Even\'Tapp eerst toe aan je beginscherm (Deel ➔ Zet op beginscherm).', 'warning');
+    updateProfileNotificationUI();
+    return;
+  }
+
+  if (!cap.hasNotificationAPI) {
+    showToast('Meldingen worden niet ondersteund op deze browser.', 'warning');
     return;
   }
 
   if (Notification.permission !== 'granted') {
-    Notification.requestPermission().then((perm) => {
-      if (perm === 'granted') {
-        localStorage.setItem('eventapp_notifications_enabled', 'true');
-        updateProfileNotificationUI();
-        sendDeviceNotification("Even'Tapp", "🔔 Meldingen werken perfect op dit toestel!", true);
-        showToast('Testmelding verzonden!', 'success');
-      } else {
-        showToast('Geef eerst toestemming voor meldingen in de browser/toestel.', 'warning');
-        updateProfileNotificationUI();
-      }
-    });
+    const perm = await requestPermissionCompat();
+    if (perm === 'granted') {
+      localStorage.setItem('eventapp_notifications_enabled', 'true');
+      updateProfileNotificationUI();
+      sendDeviceNotification("Even'Tapp", "🔔 Meldingen werken perfect op dit toestel!", true);
+      showToast('Toestemming verleend & testmelding verzonden!', 'success');
+    } else {
+      showToast('Geef eerst toestemming voor meldingen in je browserinstellingen (zie instructie hierboven).', 'warning');
+      updateProfileNotificationUI();
+    }
     return;
   }
 
+  // Permissie is reeds granted
+  localStorage.setItem('eventapp_notifications_enabled', 'true');
+  updateProfileNotificationUI();
   sendDeviceNotification("Even'Tapp", "🔔 Meldingen werken perfect op dit toestel!", true);
   showToast('Testmelding verzonden naar je toestel!', 'success');
 }
@@ -1641,6 +1724,11 @@ function triggerTestNotification() {
 function sendDeviceNotification(title = "Even'Tapp", body = "Nieuwe melding in Even'Tapp! Tik om te bekijken.", force = false) {
   if (!force && !isNotificationsEnabledOnDevice()) return;
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  // Trillen
+  if ('vibrate' in navigator) {
+    try { navigator.vibrate([200, 100, 200]); } catch(e) {}
+  }
 
   const options = {
     body: body,
