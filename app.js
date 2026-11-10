@@ -1810,7 +1810,6 @@ function openProfileModal() {
   document.getElementById('profileName').value = state.currentUser.name;
   document.getElementById('profileEmail').value = state.currentUser.email;
   document.getElementById('profilePhone').value = state.currentUser.phone || '';
-  document.getElementById('profileEmergency').value = state.currentUser.emergencyContact || '';
 
   // Beheerderscontrole: Toon database backup/herstel uitsluitend aan developer en admin
   const isManager = (state.currentUser.role === 'developer' || state.currentUser.role === 'admin');
@@ -1904,7 +1903,6 @@ function handleProfileUpdate(e) {
 
   state.currentUser.name = document.getElementById('profileName').value.trim();
   state.currentUser.phone = document.getElementById('profilePhone').value.trim();
-  state.currentUser.emergencyContact = document.getElementById('profileEmergency').value.trim();
 
   const uIndex = state.users.findIndex(u => u.id === state.currentUser.id);
   if (uIndex >= 0) {
