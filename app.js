@@ -1812,6 +1812,17 @@ function openProfileModal() {
   document.getElementById('profilePhone').value = state.currentUser.phone || '';
   document.getElementById('profileEmergency').value = state.currentUser.emergencyContact || '';
 
+  // Beheerderscontrole: Toon database backup/herstel uitsluitend aan developer en admin
+  const isManager = (state.currentUser.role === 'developer' || state.currentUser.role === 'admin');
+  const adminControls = document.getElementById('adminBackupControls');
+  if (adminControls) {
+    if (isManager) {
+      adminControls.classList.remove('d-none');
+    } else {
+      adminControls.classList.add('d-none');
+    }
+  }
+
   renderProfileAvatarPreview();
   updateProfileNotificationUI();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('profileModal')).show();
@@ -1966,6 +1977,12 @@ function exportGdprJson() {
 }
 
 function downloadFullBackup() {
+  const isManager = state.currentUser && (state.currentUser.role === 'developer' || state.currentUser.role === 'admin');
+  if (!isManager) {
+    showToast('Toegang geweigerd. Deze actie is exclusief voor de beheerder.', 'danger');
+    return;
+  }
+
   const backup = {
     app: "Even'Tapp",
     versie: '3.1',
@@ -1982,6 +1999,12 @@ function downloadFullBackup() {
 }
 
 function restoreBackupFromFile(e) {
+  const isManager = state.currentUser && (state.currentUser.role === 'developer' || state.currentUser.role === 'admin');
+  if (!isManager) {
+    showToast('Toegang geweigerd. Deze actie is exclusief voor de beheerder.', 'danger');
+    return;
+  }
+
   const file = e.target.files[0];
   if (!file) return;
 

@@ -836,13 +836,20 @@
             <button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="exportGdprJson()">
               <i class="bi bi-download me-1"></i> Download Mijn Gegevens (GDPR JSON)
             </button>
-            <button type="button" class="btn btn-outline-dark btn-sm w-100" onclick="downloadFullBackup()">
-              <i class="bi bi-file-earmark-arrow-down me-1"></i> Download Database Backup (.json)
-            </button>
-            <label class="btn btn-outline-secondary btn-sm w-100 mb-0">
-              <i class="bi bi-file-earmark-arrow-up me-1"></i> Herstel Database Backup
-              <input type="file" accept=".json" onchange="restoreBackupFromFile(event)" style="display: none;">
-            </label>
+
+            <!-- Beheerderssectie: Exclusief voor Beheerder / Developer -->
+            <div id="adminBackupControls" class="d-none pt-2 border-top d-flex flex-column gap-2">
+              <span class="small text-muted fw-bold text-uppercase" style="font-size:0.75rem;">
+                <i class="bi bi-shield-lock-fill text-warning me-1"></i> Beheerdersopties
+              </span>
+              <button type="button" class="btn btn-outline-dark btn-sm w-100" onclick="downloadFullBackup()">
+                <i class="bi bi-file-earmark-arrow-down me-1"></i> Download Database Backup (.json)
+              </button>
+              <label class="btn btn-outline-danger btn-sm w-100 mb-0">
+                <i class="bi bi-file-earmark-arrow-up me-1"></i> Herstel Database Backup
+                <input type="file" accept=".json" onchange="restoreBackupFromFile(event)" style="display: none;">
+              </label>
+            </div>
           </div>
         </div>
       </div>
