@@ -1615,10 +1615,12 @@ function updateProfileNotificationUI() {
 
   const perm = Notification.permission;
   const enabled = localStorage.getItem('eventapp_notifications_enabled') === 'true';
+  const activateBtn = document.getElementById('btnActivateNotification');
 
   if (perm === 'granted') {
     toggle.checked = enabled;
     toggle.disabled = false;
+    if (activateBtn) activateBtn.classList.add('d-none');
     if (enabled) {
       statusText.innerHTML = '<span class="text-success fw-semibold small d-block"><i class="bi bi-check-circle-fill me-1"></i> Actief op dit toestel! Je ontvangt meldingen bij nieuwe activiteiten.</span>';
     } else {
@@ -1628,6 +1630,7 @@ function updateProfileNotificationUI() {
   } else if (perm === 'denied') {
     toggle.checked = false;
     toggle.disabled = false;
+    if (activateBtn) activateBtn.classList.remove('d-none');
     statusText.innerHTML = `
       <div class="alert alert-danger p-2 small mb-0 rounded-3">
         <strong><i class="bi bi-shield-x me-1"></i> Meldingen geblokkeerd in browser:</strong><br>
@@ -1641,7 +1644,8 @@ function updateProfileNotificationUI() {
     // Permissie is 'default' (nog niet gevraagd)
     toggle.checked = false;
     toggle.disabled = false;
-    statusText.innerHTML = '<span class="text-muted small d-block"><i class="bi bi-bell me-1"></i> Meldingen staan uit. Zet de schakelaar aan om toestemming te geven.</span>';
+    if (activateBtn) activateBtn.classList.remove('d-none');
+    statusText.innerHTML = '<span class="text-muted small d-block"><i class="bi bi-bell me-1"></i> Meldingen staan uit. Tik op de knop hieronder om toestemming te geven.</span>';
     if (testBtn) testBtn.disabled = false;
   }
 }
@@ -2004,6 +2008,41 @@ function restoreBackupFromFile(e) {
   reader.readAsText(file);
 }
 
+async function activateNotificationsDirect() {
+  if (!('Notification' in window)) {
+    showToast('Meldingen worden niet ondersteund op deze browser.', 'warning');
+    return;
+  }
+  const perm = await requestPermissionCompat();
+  if (perm === 'granted') {
+    localStorage.setItem('eventapp_notifications_enabled', 'true');
+    showToast('Meldingen succesvol ingeschakeld!', 'success');
+    sendDeviceNotification("Even'Tapp", "🔔 Meldingen zijn actief op dit toestel!", true);
+  } else if (perm === 'denied') {
+    showToast('Toestemming geweigerd. Zet meldingen op "Toestaan" via het slotje naast de adresbalk.', 'danger');
+  }
+  updateProfileNotificationUI();
+}
+
+async function forceAppRefresh() {
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (let r of regs) { await r.unregister(); }
+    }
+    showToast('App-cache succesvol gewist! Pagina vernieuwt...', 'info');
+    setTimeout(() => {
+      window.location.href = window.location.origin + window.location.pathname + '?ts=' + Date.now();
+    }, 400);
+  } catch (err) {
+    window.location.reload();
+  }
+}
+
 // --- INITIALISATIE ---
 document.addEventListener('DOMContentLoaded', () => {
   loadState();
@@ -2016,9 +2055,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.syncUrl) pullCloudData();
   }, 15000);
 
-  // Registreer Service Worker voor PWA / Offline
+  // Registreer Service Worker voor PWA / Offline met geforceerde cache-vernieuwing
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW reg error:', err));
+    navigator.serviceWorker.register('./sw.js?v=20261110_1745').then(reg => {
+      reg.update();
+    }).catch(err => console.log('SW reg error:', err));
   }
 });
 
@@ -2055,4 +2096,6 @@ window.downloadFullBackup = downloadFullBackup;
 window.restoreBackupFromFile = restoreBackupFromFile;
 window.handleNotificationToggle = handleNotificationToggle;
 window.triggerTestNotification = triggerTestNotification;
+window.activateNotificationsDirect = activateNotificationsDirect;
+window.forceAppRefresh = forceAppRefresh;
 

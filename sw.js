@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eventapp-v3';
+const CACHE_NAME = 'eventapp-v5';
 const ASSETS = [
   './',
   './index.html',

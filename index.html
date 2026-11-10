@@ -29,7 +29,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20261110_1745">
 </head>
 <body class="bg-light d-flex flex-column min-vh-100">
 
@@ -814,14 +814,25 @@
               </div>
             </div>
 
-            <div id="notificationStatusText" class="small mb-3"></div>
+            <div id="notificationStatusText" class="small mb-3">
+              <span class="text-muted"><i class="bi bi-hourglass-split me-1"></i> Controleren...</span>
+            </div>
 
-            <button type="button" id="btnTestNotification" class="btn btn-outline-forest btn-sm w-100 fw-semibold" onclick="triggerTestNotification()">
-              <i class="bi bi-send-check me-1"></i> Stuur testmelding naar dit toestel
-            </button>
+            <div class="d-flex flex-column gap-2">
+              <button type="button" id="btnActivateNotification" class="btn btn-forest btn-sm w-100 fw-bold d-none" onclick="activateNotificationsDirect()">
+                <i class="bi bi-bell-fill me-1"></i> Meldingen Toestaan op dit Toestel
+              </button>
+
+              <button type="button" id="btnTestNotification" class="btn btn-outline-forest btn-sm w-100 fw-semibold" onclick="triggerTestNotification()">
+                <i class="bi bi-send-check me-1"></i> Stuur testmelding naar dit toestel
+              </button>
+            </div>
           </div>
 
           <div class="pt-2 border-top d-flex flex-column gap-2">
+            <button type="button" class="btn btn-outline-warning text-dark btn-sm w-100 fw-semibold" onclick="forceAppRefresh()">
+              <i class="bi bi-arrow-clockwise me-1"></i> App-versie & Cache Vernieuwen
+            </button>
             <button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="exportGdprJson()">
               <i class="bi bi-download me-1"></i> Download Mijn Gegevens (GDPR JSON)
             </button>
@@ -840,6 +851,6 @@
 
   <!-- Bootstrap 5 JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=20261110_1745"></script>
 </body>
 </html>
