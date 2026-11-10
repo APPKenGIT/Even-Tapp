@@ -798,6 +798,29 @@
             <button type="submit" class="btn btn-outline-forest btn-sm w-100 fw-semibold">Wachtwoord Aanpassen</button>
           </form>
 
+          <!-- Toestel-Meldingen & Testknop -->
+          <div class="p-3 bg-light rounded-3 mb-3 border">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div>
+                <h6 class="fw-bold text-forest mb-0">
+                  <i class="bi bi-bell-fill me-1 text-accent"></i> Toestel-Meldingen
+                </h6>
+                <small class="text-muted" style="font-size:0.75rem;">
+                  Ontvang meldingen op dit toestel bij nieuwe activiteiten
+                </small>
+              </div>
+              <div class="form-check form-switch fs-5 mb-0">
+                <input class="form-check-input" type="checkbox" id="profileNotificationToggle" onchange="handleNotificationToggle(this.checked)">
+              </div>
+            </div>
+
+            <div id="notificationStatusText" class="small mb-2 text-muted"></div>
+
+            <button type="button" id="btnTestNotification" class="btn btn-outline-forest btn-sm w-100 fw-semibold" onclick="triggerTestNotification()">
+              <i class="bi bi-send-check me-1"></i> Stuur testmelding naar dit toestel
+            </button>
+          </div>
+
           <div class="pt-2 border-top d-flex flex-column gap-2">
             <button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="exportGdprJson()">
               <i class="bi bi-download me-1"></i> Download Mijn Gegevens (GDPR JSON)

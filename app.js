@@ -233,6 +233,15 @@ async function pullCloudData() {
           state.users = validUsers;
         }
 
+        const incomingSessions = Array.isArray(data.sessions) ? data.sessions : [];
+        const incomingUpdatedAt = data.updatedAt || null;
+
+        // Controleer of er een notificatie afgevuurd moet worden voor dit toestel
+        checkShouldNotifyUpdate(incomingSessions, state.users, incomingUpdatedAt);
+
+        state.sessions = incomingSessions;
+        state.registrations = Array.isArray(data.registrations) ? data.registrations : [];
+
         localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(state.sessions));
         localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(state.registrations));
         localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(state.users));
@@ -266,6 +275,9 @@ async function pushCloudData() {
   if (!state.syncUrl) return;
   try {
     const url = state.syncUrl.endsWith('.json') ? state.syncUrl : `${state.syncUrl}/data.json`;
+    const nowIso = new Date().toISOString();
+    // Registreer eigen update timestamp zodat dit toestel hier geen self-notificatie van krijgt
+    localStorage.setItem('eventapp_last_known_update', nowIso);
     await fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -273,7 +285,7 @@ async function pushCloudData() {
         sessions: state.sessions,
         registrations: state.registrations,
         users: state.users,
-        updatedAt: new Date().toISOString()
+        updatedAt: nowIso
       })
     });
   } catch (err) {
@@ -1528,6 +1540,178 @@ function exportDevAnalyticsCsv() {
   a.click();
 }
 
+// --- TOESTEL-NOTIFICATIES (BEHEER & VERZENDING) ---
+function isNotificationsEnabledOnDevice() {
+  if (!('Notification' in window)) return false;
+  const userPref = localStorage.getItem('eventapp_notifications_enabled');
+  return (userPref === 'true' && Notification.permission === 'granted');
+}
+
+function updateProfileNotificationUI() {
+  const toggle = document.getElementById('profileNotificationToggle');
+  const statusText = document.getElementById('notificationStatusText');
+  const testBtn = document.getElementById('btnTestNotification');
+  if (!toggle || !statusText) return;
+
+  if (!('Notification' in window)) {
+    toggle.checked = false;
+    toggle.disabled = true;
+    statusText.innerHTML = '<span class="text-warning"><i class="bi bi-info-circle me-1"></i> Meldingen worden niet ondersteund door deze browser/toestel (op iPhone vereist dit iOS 16.4+ via "Zet op beginscherm").</span>';
+    if (testBtn) testBtn.disabled = true;
+    return;
+  }
+
+  const perm = Notification.permission;
+  const enabled = localStorage.getItem('eventapp_notifications_enabled') === 'true';
+
+  if (perm === 'granted' && enabled) {
+    toggle.checked = true;
+    toggle.disabled = false;
+    statusText.innerHTML = '<span class="text-success fw-semibold"><i class="bi bi-check-circle-fill me-1"></i> Ingeschakeld op dit toestel. Je ontvangt meldingen bij nieuwe activiteiten.</span>';
+    if (testBtn) testBtn.disabled = false;
+  } else if (perm === 'denied') {
+    toggle.checked = false;
+    toggle.disabled = false;
+    statusText.innerHTML = '<span class="text-danger fw-semibold"><i class="bi bi-exclamation-triangle-fill me-1"></i> Meldingen zijn geblokkeerd in je browser- of toestelinstellingen. Schakel dit in bij je app-instellingen.</span>';
+    if (testBtn) testBtn.disabled = true;
+  } else {
+    toggle.checked = false;
+    toggle.disabled = false;
+    statusText.innerHTML = '<span class="text-muted"><i class="bi bi-bell-slash me-1"></i> Meldingen staan momenteel uit op dit toestel. Zet de schakelaar aan om in te schakelen.</span>';
+    if (testBtn) testBtn.disabled = false;
+  }
+}
+
+async function handleNotificationToggle(checked) {
+  if (!('Notification' in window)) {
+    showToast('Meldingen worden niet ondersteund op dit toestel.', 'warning');
+    updateProfileNotificationUI();
+    return;
+  }
+
+  if (checked) {
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        localStorage.setItem('eventapp_notifications_enabled', 'true');
+        showToast('Toestel-meldingen succesvol ingeschakeld!', 'success');
+        sendDeviceNotification("Even'Tapp", "🔔 Meldingen zijn actief op dit toestel!", true);
+      } else if (perm === 'denied') {
+        localStorage.setItem('eventapp_notifications_enabled', 'false');
+        showToast('Toestemming geweigerd. Schakel meldingen in via je toestelinstellingen.', 'warning');
+      } else {
+        localStorage.setItem('eventapp_notifications_enabled', 'false');
+      }
+    } catch (e) {
+      console.warn("Notification permission error:", e);
+    }
+  } else {
+    localStorage.setItem('eventapp_notifications_enabled', 'false');
+    showToast('Toestel-meldingen uitgeschakeld.', 'info');
+  }
+
+  updateProfileNotificationUI();
+}
+
+function triggerTestNotification() {
+  if (!('Notification' in window)) {
+    showToast('Meldingen worden niet ondersteund op dit toestel.', 'warning');
+    return;
+  }
+
+  if (Notification.permission !== 'granted') {
+    Notification.requestPermission().then((perm) => {
+      if (perm === 'granted') {
+        localStorage.setItem('eventapp_notifications_enabled', 'true');
+        updateProfileNotificationUI();
+        sendDeviceNotification("Even'Tapp", "🔔 Meldingen werken perfect op dit toestel!", true);
+        showToast('Testmelding verzonden!', 'success');
+      } else {
+        showToast('Geef eerst toestemming voor meldingen in de browser/toestel.', 'warning');
+        updateProfileNotificationUI();
+      }
+    });
+    return;
+  }
+
+  sendDeviceNotification("Even'Tapp", "🔔 Meldingen werken perfect op dit toestel!", true);
+  showToast('Testmelding verzonden naar je toestel!', 'success');
+}
+
+function sendDeviceNotification(title = "Even'Tapp", body = "Nieuwe melding in Even'Tapp! Tik om te bekijken.", force = false) {
+  if (!force && !isNotificationsEnabledOnDevice()) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const options = {
+    body: body,
+    icon: 'icon-192.png',
+    badge: 'favicon-32.png',
+    vibrate: [200, 100, 200],
+    tag: 'eventapp-device-notification',
+    renotify: true,
+    data: { url: './index.html' }
+  };
+
+  if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+    navigator.serviceWorker.ready.then(reg => {
+      reg.showNotification(title, options);
+    }).catch(err => {
+      try {
+        new Notification(title, options);
+      } catch (e) {
+        console.warn("Direct notification fallback error:", e);
+      }
+    });
+  } else {
+    try {
+      new Notification(title, options);
+    } catch (e) {
+      console.warn("Notification error:", e);
+    }
+  }
+}
+
+function checkShouldNotifyUpdate(newSessions, newUsers, newUpdatedAt) {
+  if (!newUpdatedAt) return;
+  const lastKnown = localStorage.getItem('eventapp_last_known_update');
+
+  if (!lastKnown) {
+    // Eerste initialisatie: bewaar als nulpunt, geen notificatie afvuren
+    localStorage.setItem('eventapp_last_known_update', newUpdatedAt);
+    return;
+  }
+
+  if (newUpdatedAt !== lastKnown) {
+    localStorage.setItem('eventapp_last_known_update', newUpdatedAt);
+
+    // Alleen notificeren als de gebruiker ingelogd is
+    if (!state.currentUser) return;
+
+    // Controleer of de wijziging door een ander account is gedaan
+    const prevSessions = state.sessions || [];
+    const newSession = newSessions.find(s => !prevSessions.some(ps => ps.id === s.id));
+
+    // Als een ander account een nieuw event heeft aangemaakt
+    if (newSession && newSession.creatorName && newSession.creatorName !== state.currentUser.name) {
+      sendDeviceNotification("Even'Tapp", "Nieuwe melding in Even'Tapp! Tik om te bekijken.");
+      return;
+    }
+
+    // Voor developer: controleer of er een nieuwe registratieaanvraag is binnengekomen
+    if (state.currentUser.role === 'developer') {
+      const prevPending = (state.users || []).filter(u => u.status === 'pending').length;
+      const newPending = (newUsers || []).filter(u => u.status === 'pending').length;
+      if (newPending > prevPending) {
+        sendDeviceNotification("Even'Tapp", "Nieuwe melding in Even'Tapp! Tik om te bekijken.");
+        return;
+      }
+    }
+
+    // Algemene notificatie voor relevante cloud update van een teamlid
+    sendDeviceNotification("Even'Tapp", "Nieuwe melding in Even'Tapp! Tik om te bekijken.");
+  }
+}
+
 // --- MIJN PROFIEL, FOTO UPLOAD & GDPR EXPORT ---
 function openProfileModal() {
   if (!state.currentUser) return;
@@ -1537,6 +1721,7 @@ function openProfileModal() {
   document.getElementById('profileEmergency').value = state.currentUser.emergencyContact || '';
 
   renderProfileAvatarPreview();
+  updateProfileNotificationUI();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('profileModal')).show();
 }
 
@@ -1780,4 +1965,6 @@ window.handlePasswordChange = handlePasswordChange;
 window.exportGdprJson = exportGdprJson;
 window.downloadFullBackup = downloadFullBackup;
 window.restoreBackupFromFile = restoreBackupFromFile;
+window.handleNotificationToggle = handleNotificationToggle;
+window.triggerTestNotification = triggerTestNotification;
 
